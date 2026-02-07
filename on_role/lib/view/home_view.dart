@@ -33,9 +33,10 @@ class _HomeViewState extends State<HomeView> {
           });
         },
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.cyanAccent,
-        unselectedItemColor: Colors.white70,
-        backgroundColor: Colors.black87,
+        elevation: 10.0,
+        selectedItemColor: const Color.fromARGB(255, 255, 255, 255),
+        unselectedItemColor: const Color.fromARGB(158, 204, 204, 204),
+        backgroundColor: const Color.fromARGB(255, 0, 0, 0),
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
             icon: Icon(Icons.home),

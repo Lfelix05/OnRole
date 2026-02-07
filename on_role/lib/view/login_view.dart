@@ -15,7 +15,7 @@ class _LoginViewState extends State<LoginView> {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        title: Text('Login'),
+        title: Text('Login', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: Colors.deepPurple,
       ),
       body: Stack(
@@ -62,6 +62,7 @@ class _LoginViewState extends State<LoginView> {
                       child: Padding(
                         padding: const EdgeInsets.all(20.0),
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[
                             TextFormField(
@@ -80,20 +81,29 @@ class _LoginViewState extends State<LoginView> {
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0))),
                               obscureText: true,
                             ),
-                            SizedBox(height: 30.0),
-                            ElevatedButton(
+                            TextButton(
                               onPressed: () {
-                                // Lógica de autenticação aqui
-                                Navigator.push(context, MaterialPageRoute(builder: (context) => HomeView()));
+                                // Lógica de recuperação de senha aqui
                               },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.cyan,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10.0),
+                              child: Text('Esqueci minha senha', style: TextStyle(color: const Color.fromARGB(255, 0, 4, 255), fontSize: 12.0)),
+                            ),
+                            SizedBox(height: 30.0),
+                            Container(
+                              padding: EdgeInsets.symmetric(horizontal: 50.0),
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  // Lógica de autenticação aqui
+                                  Navigator.push(context, MaterialPageRoute(builder: (context) => HomeView()));
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.cyan,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                  ),
+                                  minimumSize: Size(200.0, 50.0),
                                 ),
-                                minimumSize: Size(200.0, 50.0),
+                                child: Text('Entrar', style: TextStyle(color: Colors.white, fontSize: 18.0, fontWeight: FontWeight.bold)),
                               ),
-                              child: Text('Entrar', style: TextStyle(color: Colors.white, fontSize: 18.0, fontWeight: FontWeight.bold)),
                             ),
                           ],
                         ),

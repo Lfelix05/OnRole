@@ -13,7 +13,7 @@ class _RegisterViewState extends State<RegisterView> {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        title: Text('Registrar'),
+        title: Text('Registrar', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: Colors.deepPurple,
       ),
       body: Stack(
@@ -62,22 +62,14 @@ class _RegisterViewState extends State<RegisterView> {
                         padding: const EdgeInsets.all(16.0),
                         child: Column(
                           children: [
-                            // Campos de registro (exemplo)
-                            TextFormField(
-                              decoration:
-                                  InputDecoration(labelText: 'Nome',
-                                  border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(vertical: 15.0, horizontal: 10.0),
-                                  icon: Icon(Icons.person)),
-                            ),
+                            IconButton(icon: Icon(Icons.account_circle_outlined), iconSize: 128.0, color: Colors.deepPurple, onPressed: () {}),
                             SizedBox(height: 16.0),
-
                             TextFormField(
                               decoration:
                                   InputDecoration(labelText: 'Nome de Usuário',
                                   border: OutlineInputBorder(),
                                   contentPadding: EdgeInsets.symmetric(vertical: 15.0, horizontal: 10.0),
-                                  icon: Icon(Icons.account_circle)),
+                                  icon: Icon(Icons.person)),
                             ),
                             SizedBox(height: 16.0),
                             TextFormField(
@@ -91,6 +83,15 @@ class _RegisterViewState extends State<RegisterView> {
                             TextFormField(
                               decoration:
                                   InputDecoration(labelText: 'Senha',
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(vertical: 15.0, horizontal: 10.0),
+                                  icon: Icon(Icons.lock)),
+                              obscureText: true,
+                            ),
+                            SizedBox(height: 16.0),
+                            TextFormField(
+                              decoration:
+                                  InputDecoration(labelText: 'Confirmar Senha',
                                   border: OutlineInputBorder(),
                                   contentPadding: EdgeInsets.symmetric(vertical: 15.0, horizontal: 10.0),
                                   icon: Icon(Icons.lock)),
