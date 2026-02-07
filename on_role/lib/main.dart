@@ -16,7 +16,7 @@ class MainApp extends StatelessWidget {
         primarySwatch: Colors.deepPurple,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: WelcomeScreen(),
+      home: WelcomeView(),
     );
   }
 }

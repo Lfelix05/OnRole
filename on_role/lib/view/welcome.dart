@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:on_role/view/register_screen.dart';
-import 'login_screen.dart';
+import 'register_view.dart';
+import 'login_view.dart';
   
-class WelcomeScreen extends StatelessWidget {
+class WelcomeView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -66,7 +66,7 @@ class WelcomeScreen extends StatelessWidget {
                     height: 50.0,
                     child: ElevatedButton(
                       onPressed: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => LoginScreen()));
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => LoginView()));
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.cyan, // Cor principal do botão
@@ -91,7 +91,7 @@ class WelcomeScreen extends StatelessWidget {
                     height: 50.0,
                     child: OutlinedButton(
                       onPressed: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => RegisterScreen()));
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => RegisterView()));
                       },
                       style: OutlinedButton.styleFrom(
                         backgroundColor: Colors.white, // Cor do texto do botão
