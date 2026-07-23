@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/auth_provider.dart';
+import '../theme/app_theme.dart';
+import '../theme/app_widgets.dart';
 import 'home_view.dart';
+import 'register_view.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -10,111 +15,142 @@ class LoginView extends StatefulWidget {
 }
 
 class _LoginViewState extends State<LoginView> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+
+    final error = context.read<AuthProvider>().login(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
+
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error)),
+      );
+      return;
+    }
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const HomeView()),
+      (route) => false,
+    );
+  }
+
+  Widget _fieldLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0, left: 2.0),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 11.0,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        title: Text('Login', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
-        backgroundColor: Colors.deepPurple,
-      ),
-      body: Stack(
-        children: <Widget>[
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color(0xFF1A237E),
-                  Color(0xFF424242),
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: CircleAvatar(
+            backgroundColor: AppColors.surfaceHigh,
+            child: IconButton(
+              icon: const Icon(Icons.chevron_left, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
             ),
           ),
-          Image.asset(
-            'assets/background.png',
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            opacity: const AlwaysStoppedAnimation(0.2),
-          ),
-          Center(child:
-            SafeArea(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.only(
-                  left: 30.0,
-                  right: 30.0,
-                  top: 24.0,
-                  bottom: MediaQuery.of(context).viewInsets.bottom + 24.0,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(
-                      'Tela de Login',
-                      style: TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        title: const Text('Entrar'),
+      ),
+      body: AppBackground(
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+              left: 24.0,
+              right: 24.0,
+              top: 8.0,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24.0,
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  _fieldLabel('E-MAIL'),
+                  TextFormField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(hintText: 'voce@email.com'),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) return 'Informe o email';
+                      if (!value.contains('@')) return 'Email inválido';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 20.0),
+                  _fieldLabel('SENHA'),
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: true,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(hintText: '••••••••'),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) return 'Informe a senha';
+                      return null;
+                    },
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {},
+                      child: const Text('Esqueci minha senha', style: TextStyle(fontSize: 12.0)),
                     ),
-                    SizedBox(height: 24.0),
-                    Card(
-                      color: const Color.fromARGB(255, 223, 227, 255)
-                          .withOpacity(0.9),
-                      child: Padding(
-                        padding: const EdgeInsets.all(20.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            TextFormField(
-                              decoration: InputDecoration(labelText: 'Email', 
-                              helperStyle: TextStyle(fontWeight: FontWeight.bold, 
-                              color: Colors.white), icon: Icon(Icons.email), 
-                              contentPadding: EdgeInsets.symmetric(vertical: 15.0, horizontal: 10.0), 
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0))),
-                            ),
-                            SizedBox(height: 20.0),
-                            TextFormField(
-                              decoration: InputDecoration(labelText: 'Senha',
-                              helperStyle: TextStyle(fontWeight: FontWeight.bold, color: Colors.white), 
-                              icon: Icon(Icons.lock), 
-                              contentPadding: EdgeInsets.symmetric(vertical: 15.0, horizontal: 10.0), 
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0))),
-                              obscureText: true,
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                // Lógica de recuperação de senha aqui
-                              },
-                              child: Text('Esqueci minha senha', style: TextStyle(color: const Color.fromARGB(255, 0, 4, 255), fontSize: 12.0)),
-                            ),
-                            SizedBox(height: 30.0),
-                            Container(
-                              padding: EdgeInsets.symmetric(horizontal: 50.0),
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  // Lógica de autenticação aqui
-                                  Navigator.push(context, MaterialPageRoute(builder: (context) => HomeView()));
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.cyan,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10.0),
-                                  ),
-                                  minimumSize: Size(200.0, 50.0),
-                                ),
-                                child: Text('Entrar', style: TextStyle(color: Colors.white, fontSize: 18.0, fontWeight: FontWeight.bold)),
-                              ),
-                            ),
-                          ],
+                  ),
+                  const SizedBox(height: 12.0),
+                  GradientButton(label: 'Entrar', onPressed: _submit),
+                  const SizedBox(height: 32.0),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Não tem conta?',
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 13.0),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterView()));
+                        },
+                        child: const Text(
+                          'Criar conta',
+                          style: TextStyle(fontSize: 13.0, fontWeight: FontWeight.w600),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          )
-        ],
+          ),
+        ),
       ),
     );
   }

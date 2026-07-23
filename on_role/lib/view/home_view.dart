@@ -14,7 +14,7 @@ class HomeView extends StatefulWidget {
 class _HomeViewState extends State<HomeView> {
   int _currentIndex = 0;
 
-  List<Widget> get _pages => <Widget>[
+  List<Widget> get _pages => const <Widget>[
         FeedScreen(),
         MapScreen(),
         SearchScreen(),
@@ -32,11 +32,6 @@ class _HomeViewState extends State<HomeView> {
             _currentIndex = index;
           });
         },
-        type: BottomNavigationBarType.fixed,
-        elevation: 10.0,
-        selectedItemColor: const Color.fromARGB(255, 255, 255, 255),
-        unselectedItemColor: const Color.fromARGB(158, 204, 204, 204),
-        backgroundColor: const Color.fromARGB(255, 0, 0, 0),
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
             icon: Icon(Icons.home),
