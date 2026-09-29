@@ -3,6 +3,10 @@ import 'package:on_role/view/screen/feed_screen.dart';
 import 'package:on_role/view/screen/map_screen.dart';
 import 'package:on_role/view/screen/profile_screen.dart';
 import 'package:on_role/view/screen/search_screen.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/auth_provider.dart';
+import '../providers/presence_provider.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -13,6 +17,15 @@ class HomeView extends StatefulWidget {
 
 class _HomeViewState extends State<HomeView> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Localização e check-in automático rodam enquanto o usuário está logado,
+    // em qualquer aba.
+    final userId = context.read<AuthProvider>().currentUser?.id;
+    if (userId != null) context.read<PresenceProvider>().start(userId: userId);
+  }
 
   List<Widget> get _pages => const <Widget>[
         FeedScreen(),

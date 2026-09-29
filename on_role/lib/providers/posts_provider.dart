@@ -18,6 +18,7 @@ class PostsProvider extends ChangeNotifier {
     required String title,
     required String content,
     required String authorId,
+    required String venueId,
   }) {
     final now = DateTime.now();
     MockDatabase.instance.addPost(
@@ -27,6 +28,7 @@ class PostsProvider extends ChangeNotifier {
         content: content,
         type: PostType.text,
         authorId: authorId,
+        venueId: venueId,
         createdAt: now,
         updatedAt: now,
       ),

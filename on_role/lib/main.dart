@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import 'providers/auth_provider.dart';
 import 'providers/posts_provider.dart';
+import 'providers/presence_provider.dart';
+import 'providers/venues_provider.dart';
 import 'theme/app_theme.dart';
 import 'view/welcome.dart';
 
@@ -19,6 +21,8 @@ class MainApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => PostsProvider()),
+        ChangeNotifierProvider(create: (_) => VenuesProvider()),
+        ChangeNotifierProvider(create: (_) => PresenceProvider()),
       ],
       child: MaterialApp(
         title: 'OnRolê',

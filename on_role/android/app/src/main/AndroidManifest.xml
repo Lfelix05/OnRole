@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Tiles do mapa. O manifest de debug já inclui, mas o de release não. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Localização para o mapa e o check-in automático por geocerca. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
         android:label="on_role"
         android:name="${applicationName}"

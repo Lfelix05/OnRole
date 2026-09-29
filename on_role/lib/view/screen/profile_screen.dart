@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/posts.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/posts_provider.dart';
+import '../../providers/presence_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_widgets.dart';
 import '../welcome.dart';
@@ -19,6 +20,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _gridTab = true;
 
   void _logout() {
+    context.read<PresenceProvider>().stop();
     context.read<AuthProvider>().logout();
     Navigator.pushAndRemoveUntil(
       context,

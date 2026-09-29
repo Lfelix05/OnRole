@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../models/posts.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/posts_provider.dart';
+import '../../providers/presence_provider.dart';
+import '../../providers/venues_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_widgets.dart';
 
@@ -26,6 +28,18 @@ class _FeedScreenState extends State<FeedScreen> {
   void _openNewPostSheet() {
     final authorId = context.read<AuthProvider>().currentUser?.id;
     if (authorId == null) return;
+
+    // Só posta quem teve a presença validada pela geocerca: é isso que
+    // garante que o feed mostra o que está acontecendo agora, no local.
+    final venue = context.read<PresenceProvider>().checkedInVenue;
+    if (venue == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Para postar, você precisa estar num rolê. O check-in é automático quando você chega a um local do mapa.'),
+        ),
+      );
+      return;
+    }
 
     showModalBottomSheet(
       context: context,
@@ -50,6 +64,14 @@ class _FeedScreenState extends State<FeedScreen> {
                 'Novo post',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
               ),
+              const SizedBox(height: 4.0),
+              Row(
+                children: [
+                  const Icon(Icons.location_on, color: AppColors.success, size: 14),
+                  const SizedBox(width: 4.0),
+                  Text(venue.name, style: const TextStyle(color: AppColors.success, fontSize: 12)),
+                ],
+              ),
               const SizedBox(height: 14.0),
               TextField(
                 controller: _contentController,
@@ -63,10 +85,16 @@ class _FeedScreenState extends State<FeedScreen> {
                 onPressed: () {
                   final content = _contentController.text.trim();
                   if (content.isEmpty) return;
+                  // O check-in pode ter caído com a folha aberta.
+                  if (context.read<PresenceProvider>().checkedInVenue?.id != venue.id) {
+                    Navigator.pop(context);
+                    return;
+                  }
                   context.read<PostsProvider>().addPost(
                         title: 'Novo rolê',
                         content: content,
                         authorId: authorId,
+                        venueId: venue.id,
                       );
                   _contentController.clear();
                   Navigator.pop(context);
@@ -91,7 +119,9 @@ class _FeedScreenState extends State<FeedScreen> {
   Widget build(BuildContext context) {
     final posts = context.watch<PostsProvider>().posts;
     final postsProvider = context.read<PostsProvider>();
+    final venues = context.read<VenuesProvider>();
     final auth = context.watch<AuthProvider>();
+    final checkedInVenue = context.watch<PresenceProvider>().checkedInVenue;
 
     return Scaffold(
       floatingActionButton: FloatingActionButton(
@@ -116,6 +146,24 @@ class _FeedScreenState extends State<FeedScreen> {
                   ],
                 ),
               ),
+              if (checkedInVenue != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: AppColors.success, size: 16),
+                      const SizedBox(width: 6.0),
+                      Expanded(
+                        child: Text(
+                          'Você está no rolê: ${checkedInVenue.name}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: AppColors.success, fontSize: 13.0, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               SizedBox(
                 height: 84,
                 child: ListView(
@@ -146,6 +194,7 @@ class _FeedScreenState extends State<FeedScreen> {
                           final post = posts[index];
                           return _PostTile(
                             authorName: postsProvider.authorName(post.authorId),
+                            venueName: venues.venueById(post.venueId)?.name,
                             post: post,
                             timeAgo: _timeAgo(post.createdAt),
                           );
@@ -187,9 +236,10 @@ class _StoryItem extends StatelessWidget {
 }
 
 class _PostTile extends StatelessWidget {
-  const _PostTile({required this.authorName, required this.post, required this.timeAgo});
+  const _PostTile({required this.authorName, required this.venueName, required this.post, required this.timeAgo});
 
   final String authorName;
+  final String? venueName;
   final Posts post;
   final String timeAgo;
 
@@ -205,6 +255,19 @@ class _PostTile extends StatelessWidget {
             Text(authorName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.0)),
             const SizedBox(width: 8.0),
             Text('· $timeAgo', style: const TextStyle(color: AppColors.textTertiary, fontSize: 12.0)),
+            if (venueName != null) ...[
+              const SizedBox(width: 8.0),
+              const Icon(Icons.location_on, color: AppColors.primarySoft, size: 13),
+              const SizedBox(width: 2.0),
+              Flexible(
+                child: Text(
+                  venueName!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: AppColors.primarySoft, fontSize: 12.0),
+                ),
+              ),
+            ],
           ],
         ),
         const SizedBox(height: 8.0),

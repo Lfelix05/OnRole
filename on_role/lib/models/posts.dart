@@ -4,6 +4,9 @@ class Posts {
   String content;
   final PostType type;
   String authorId;
+
+  /// Local onde o autor tinha check-in ativo quando postou.
+  String? venueId;
   DateTime createdAt;
   DateTime updatedAt;
 
@@ -13,6 +16,7 @@ class Posts {
     required this.content,
     required this.type,
     required this.authorId,
+    this.venueId,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -22,8 +26,9 @@ class Posts {
       id: json['id'],
       title: json['title'],
       content: json['content'],
-      type: PostType.values.firstWhere((e) => e.toString() == json['type']),
+      type: PostType.values.byName(json['type']),
       authorId: json['authorId'],
+      venueId: json['venueId'],
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
     );
@@ -34,8 +39,9 @@ class Posts {
       'id': id,
       'title': title,
       'content': content,
-      'type': type.toString().split('.').last,
+      'type': type.name,
       'authorId': authorId,
+      'venueId': venueId,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };

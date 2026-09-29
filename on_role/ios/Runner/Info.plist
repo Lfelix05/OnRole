@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>O OnRolê usa sua localização para mostrar o movimento perto de você e fazer o check-in automático nos locais.</string>
 </dict>
 </plist>
