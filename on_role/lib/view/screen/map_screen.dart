@@ -143,7 +143,7 @@ class _MapScreenState extends State<MapScreen> {
                 child: TileLayer(
                   urlTemplate: _tileUrl,
                   // O OSM exige um User-Agent que identifique o app.
-                  userAgentPackageName: 'com.example.on_role',
+                  userAgentPackageName: 'br.com.onrole.app',
                 ),
               ),
               if (_showHeatmap)

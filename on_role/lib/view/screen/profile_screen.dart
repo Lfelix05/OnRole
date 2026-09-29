@@ -7,7 +7,6 @@ import '../../providers/posts_provider.dart';
 import '../../providers/presence_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_widgets.dart';
-import '../welcome.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -19,14 +18,13 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _gridTab = true;
 
-  void _logout() {
-    context.read<PresenceProvider>().stop();
-    context.read<AuthProvider>().logout();
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const WelcomeView()),
-      (route) => false,
-    );
+  Future<void> _logout() async {
+    final presence = context.read<PresenceProvider>();
+    final auth = context.read<AuthProvider>();
+    // Primeiro o check-out (precisa da sessão ativa para chegar ao servidor).
+    // Depois do logout, a raiz (AuthGate) volta para as boas-vindas sozinha.
+    await presence.stop();
+    await auth.logout();
   }
 
   @override

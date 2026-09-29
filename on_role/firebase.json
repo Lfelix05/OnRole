@@ -1,0 +1,28 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "southamerica-east1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "onrole-tcc",
+          "appId": "1:123172023193:android:3e86765fa54b7823ae0108",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "onrole-tcc",
+          "configurations": {
+            "android": "1:123172023193:android:3e86765fa54b7823ae0108",
+            "web": "1:123172023193:web:c3cda76a4a755f66ae0108"
+          }
+        }
+      }
+    }
+  }
+}

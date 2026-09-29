@@ -4,34 +4,34 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
-import '../models/database.dart';
+import '../data/repositories.dart';
+import '../data/venue_catalog.dart';
 import '../models/venue.dart';
-import '../services/crowd_simulator.dart';
 import '../services/kernel_density.dart';
+import 'auth_provider.dart';
 
 /// Locais do mapa e quantas pessoas há em cada um agora.
 class VenuesProvider extends ChangeNotifier {
-  VenuesProvider() {
-    _simulator = CrowdSimulator(baseline: MockDatabase.instance.crowdBaseline);
+  VenuesProvider({required PresenceRepository repository, required AuthProvider auth})
+      : _repository = repository,
+        _auth = auth {
     _clusters = {for (final venue in venues) venue.id: _buildCluster(venue)};
-    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
-      _simulator.step();
-      notifyListeners();
-    });
+    auth.addListener(_syncSession);
+    _syncSession();
   }
 
-  late final CrowdSimulator _simulator;
+  final PresenceRepository _repository;
+  final AuthProvider _auth;
   late final Map<String, List<(LatLng, double)>> _clusters;
-  late final Timer _timer;
+  StreamSubscription<Map<String, int>>? _subscription;
+  Map<String, int> _crowd = const {};
 
-  List<Venue> get venues => MockDatabase.instance.venues;
+  List<Venue> get venues => venueCatalog;
 
-  Venue? venueById(String? id) => id == null ? null : MockDatabase.instance.findVenueById(id);
+  Venue? venueById(String? id) => findVenue(id);
 
-  /// Pessoas no local agora: movimento simulado + check-ins feitos no app.
-  int crowdAt(String venueId) {
-    return _simulator.countAt(venueId) + MockDatabase.instance.activeCheckInsAt(venueId);
-  }
+  /// Pessoas com check-in ativo no local agora.
+  int crowdAt(String venueId) => _crowd[venueId] ?? 0;
 
   Venue? get hottestVenue {
     Venue? hottest;
@@ -100,9 +100,25 @@ class VenuesProvider extends ChangeNotifier {
     ];
   }
 
+  void _syncSession() {
+    final loggedIn = _auth.isLoggedIn;
+    if (loggedIn == (_subscription != null)) return;
+    _subscription?.cancel();
+    _subscription = null;
+    _crowd = const {};
+    // A lotação só pode ser lida por quem está logado.
+    if (loggedIn) {
+      _subscription = _repository.watchCrowd().listen((crowd) {
+        _crowd = crowd;
+        notifyListeners();
+      }, onError: (Object error) => debugPrint('VenuesProvider: $error'));
+    }
+  }
+
   @override
   void dispose() {
-    _timer.cancel();
+    _auth.removeListener(_syncSession);
+    _subscription?.cancel();
     super.dispose();
   }
 }

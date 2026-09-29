@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_widgets.dart';
-import 'home_view.dart';
 
 class RegisterView extends StatefulWidget {
   const RegisterView({super.key});
@@ -20,6 +19,7 @@ class _RegisterViewState extends State<RegisterView> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   DateTime? _birthDate;
+  bool _submitting = false;
 
   @override
   void dispose() {
@@ -53,21 +53,24 @@ class _RegisterViewState extends State<RegisterView> {
     }
   }
 
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _submit() async {
+    if (_submitting || !_formKey.currentState!.validate()) return;
     if (_birthDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Selecione sua data de nascimento')),
       );
       return;
     }
+    setState(() => _submitting = true);
 
-    final error = context.read<AuthProvider>().register(
+    final error = await context.read<AuthProvider>().register(
           name: _nameController.text,
           email: _emailController.text,
           password: _passwordController.text,
           birthDate: _birthDate!,
         );
+    if (!mounted) return;
+    setState(() => _submitting = false);
 
     if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -76,11 +79,8 @@ class _RegisterViewState extends State<RegisterView> {
       return;
     }
 
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const HomeView()),
-      (route) => false,
-    );
+    // Com a sessão aberta, a raiz (AuthGate) já mostra o início.
+    Navigator.popUntil(context, (route) => route.isFirst);
   }
 
   @override
@@ -208,7 +208,10 @@ class _RegisterViewState extends State<RegisterView> {
                     ),
                   ),
                   const SizedBox(height: 28.0),
-                  GradientButton(label: 'Criar conta', onPressed: _submit),
+                  GradientButton(
+                    label: _submitting ? 'Criando conta...' : 'Criar conta',
+                    onPressed: _submitting ? null : _submit,
+                  ),
                   const SizedBox(height: 24.0),
                 ],
               ),

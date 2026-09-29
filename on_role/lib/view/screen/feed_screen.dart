@@ -26,16 +26,16 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 
   void _openNewPostSheet() {
-    final authorId = context.read<AuthProvider>().currentUser?.id;
-    if (authorId == null) return;
+    final author = context.read<AuthProvider>().currentUser;
+    if (author == null) return;
 
-    // Só posta quem teve a presença validada pela geocerca: é isso que
-    // garante que o feed mostra o que está acontecendo agora, no local.
     final venue = context.read<PresenceProvider>().checkedInVenue;
     if (venue == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Para postar, você precisa estar num rolê. O check-in é automático quando você chega a um local do mapa.'),
+          content: Text(
+            'Para postar, você precisa estar num rolê. O check-in é automático quando você chega a um local do mapa.',
+          ),
         ),
       );
       return;
@@ -62,14 +62,28 @@ class _FeedScreenState extends State<FeedScreen> {
             children: [
               const Text(
                 'Novo post',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 4.0),
               Row(
                 children: [
-                  const Icon(Icons.location_on, color: AppColors.success, size: 14),
+                  const Icon(
+                    Icons.location_on,
+                    color: AppColors.success,
+                    size: 14,
+                  ),
                   const SizedBox(width: 4.0),
-                  Text(venue.name, style: const TextStyle(color: AppColors.success, fontSize: 12)),
+                  Text(
+                    venue.name,
+                    style: const TextStyle(
+                      color: AppColors.success,
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 14.0),
@@ -77,7 +91,9 @@ class _FeedScreenState extends State<FeedScreen> {
                 controller: _contentController,
                 maxLines: 3,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(hintText: 'O que tá rolando?'),
+                decoration: const InputDecoration(
+                  hintText: 'O que tá rolando?',
+                ),
               ),
               const SizedBox(height: 14.0),
               GradientButton(
@@ -86,18 +102,25 @@ class _FeedScreenState extends State<FeedScreen> {
                   final content = _contentController.text.trim();
                   if (content.isEmpty) return;
                   // O check-in pode ter caído com a folha aberta.
-                  if (context.read<PresenceProvider>().checkedInVenue?.id != venue.id) {
+                  if (context.read<PresenceProvider>().checkedInVenue?.id !=
+                      venue.id) {
                     Navigator.pop(context);
                     return;
                   }
-                  context.read<PostsProvider>().addPost(
-                        title: 'Novo rolê',
-                        content: content,
-                        authorId: authorId,
-                        venueId: venue.id,
-                      );
+                  final result = context.read<PostsProvider>().addPost(
+                    author: author,
+                    venueId: venue.id,
+                    content: content,
+                  );
                   _contentController.clear();
                   Navigator.pop(context);
+                  // O servidor ainda pode recusar (ex.: check-in expirou).
+                  result.then((error) {
+                    if (error == null || !mounted) return;
+                    ScaffoldMessenger.of(
+                      this.context,
+                    ).showSnackBar(SnackBar(content: Text(error)));
+                  });
                 },
               ),
             ],
@@ -118,7 +141,6 @@ class _FeedScreenState extends State<FeedScreen> {
   @override
   Widget build(BuildContext context) {
     final posts = context.watch<PostsProvider>().posts;
-    final postsProvider = context.read<PostsProvider>();
     final venues = context.read<VenuesProvider>();
     final auth = context.watch<AuthProvider>();
     final checkedInVenue = context.watch<PresenceProvider>().checkedInVenue;
@@ -139,10 +161,17 @@ class _FeedScreenState extends State<FeedScreen> {
                   children: [
                     const Text(
                       'OnRolê',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                     const Spacer(),
-                    InitialAvatar(name: auth.currentUser?.name ?? '?', radius: 18),
+                    InitialAvatar(
+                      name: auth.currentUser?.name ?? '?',
+                      radius: 18,
+                    ),
                   ],
                 ),
               ),
@@ -151,14 +180,22 @@ class _FeedScreenState extends State<FeedScreen> {
                   padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
                   child: Row(
                     children: [
-                      const Icon(Icons.check_circle, color: AppColors.success, size: 16),
+                      const Icon(
+                        Icons.check_circle,
+                        color: AppColors.success,
+                        size: 16,
+                      ),
                       const SizedBox(width: 6.0),
                       Expanded(
                         child: Text(
                           'Você está no rolê: ${checkedInVenue.name}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: AppColors.success, fontSize: 13.0, fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                            color: AppColors.success,
+                            fontSize: 13.0,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],
@@ -168,7 +205,10 @@ class _FeedScreenState extends State<FeedScreen> {
                 height: 84,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   children: [
                     const _StoryItem(name: 'Você', ringColor: AppColors.border),
                     for (final user in auth.otherUsers)
@@ -187,13 +227,17 @@ class _FeedScreenState extends State<FeedScreen> {
                         ),
                       )
                     : ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
                         itemCount: posts.length,
-                        separatorBuilder: (context, index) => const Divider(height: 32),
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 32),
                         itemBuilder: (context, index) {
                           final post = posts[index];
                           return _PostTile(
-                            authorName: postsProvider.authorName(post.authorId),
+                            authorName: post.authorName,
                             venueName: venues.venueById(post.venueId)?.name,
                             post: post,
                             timeAgo: _timeAgo(post.createdAt),
@@ -227,7 +271,10 @@ class _StoryItem extends StatelessWidget {
             name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.0),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11.0,
+            ),
           ),
         ],
       ),
@@ -236,7 +283,12 @@ class _StoryItem extends StatelessWidget {
 }
 
 class _PostTile extends StatelessWidget {
-  const _PostTile({required this.authorName, required this.venueName, required this.post, required this.timeAgo});
+  const _PostTile({
+    required this.authorName,
+    required this.venueName,
+    required this.post,
+    required this.timeAgo,
+  });
 
   final String authorName;
   final String? venueName;
@@ -252,26 +304,53 @@ class _PostTile extends StatelessWidget {
           children: [
             InitialAvatar(name: authorName, radius: 16),
             const SizedBox(width: 10.0),
-            Text(authorName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.0)),
+            Text(
+              authorName,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14.0,
+              ),
+            ),
             const SizedBox(width: 8.0),
-            Text('· $timeAgo', style: const TextStyle(color: AppColors.textTertiary, fontSize: 12.0)),
+            Text(
+              '· $timeAgo',
+              style: const TextStyle(
+                color: AppColors.textTertiary,
+                fontSize: 12.0,
+              ),
+            ),
             if (venueName != null) ...[
               const SizedBox(width: 8.0),
-              const Icon(Icons.location_on, color: AppColors.primarySoft, size: 13),
+              const Icon(
+                Icons.location_on,
+                color: AppColors.primarySoft,
+                size: 13,
+              ),
               const SizedBox(width: 2.0),
               Flexible(
                 child: Text(
                   venueName!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: AppColors.primarySoft, fontSize: 12.0),
+                  style: const TextStyle(
+                    color: AppColors.primarySoft,
+                    fontSize: 12.0,
+                  ),
                 ),
               ),
             ],
           ],
         ),
         const SizedBox(height: 8.0),
-        Text(post.content, style: const TextStyle(color: Colors.white, fontSize: 14.0, height: 1.3)),
+        Text(
+          post.content,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14.0,
+            height: 1.3,
+          ),
+        ),
         if (post.type != PostType.text) ...[
           const SizedBox(height: 10.0),
           SizedBox(

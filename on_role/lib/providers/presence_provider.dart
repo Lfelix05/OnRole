@@ -3,8 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../data/repositories.dart';
+import '../data/venue_catalog.dart';
 import '../models/check_in.dart';
-import '../models/database.dart';
 import '../models/venue.dart';
 import '../services/geo.dart';
 import '../services/geofence_engine.dart';
@@ -12,10 +13,17 @@ import '../services/location_service.dart';
 
 /// Localização do usuário e check-in automático por geocerca.
 class PresenceProvider extends ChangeNotifier {
+  PresenceProvider({required PresenceRepository repository}) : _repository = repository;
+
   /// O modo de simulação só existe em builds de depuração: na build do teste
   /// de campo (release), check-in só acontece com GPS real.
   static const bool simulationAvailable = kDebugMode;
 
+  /// De quanto em quanto tempo a presença é renovada no servidor (tem que ser
+  /// bem menor que [presenceTimeout]).
+  static const _keepAliveInterval = Duration(minutes: 5);
+
+  final PresenceRepository _repository;
   final GpsLocationService _gps = GpsLocationService();
   final SimulatedLocationService _simulated = SimulatedLocationService();
   late GeofenceEngine _engine = _createEngine();
@@ -29,6 +37,8 @@ class PresenceProvider extends ChangeNotifier {
   LocationAvailability? _availability;
   LocationFix? _lastFix;
   CheckIn? _activeCheckIn;
+  DateTime? _lastKeepAlive;
+  Future<void>? _pendingCheckOut;
   final List<GeofenceEvent> _events = [];
 
   bool get isSimulating => _simulating;
@@ -41,7 +51,7 @@ class PresenceProvider extends ChangeNotifier {
 
   Venue? get checkedInVenue {
     final checkIn = _activeCheckIn;
-    return checkIn == null ? null : MockDatabase.instance.findVenueById(checkIn.venueId);
+    return checkIn == null ? null : findVenue(checkIn.venueId);
   }
 
   /// Transições da sessão, para medir a taxa de acerto das geocercas no
@@ -53,7 +63,7 @@ class PresenceProvider extends ChangeNotifier {
   ({Venue venue, double progress})? get pendingCheckIn {
     ({Venue venue, double progress})? nearest;
     var nearestDistance = double.infinity;
-    for (final venue in MockDatabase.instance.venues) {
+    for (final venue in venueCatalog) {
       if (venue.id == _activeCheckIn?.venueId || _engine.statusOf(venue.id) != FenceStatus.inside) continue;
       final distance = _engine.lastDistanceTo(venue.id) ?? double.infinity;
       if (distance >= nearestDistance) continue;
@@ -74,6 +84,9 @@ class PresenceProvider extends ChangeNotifier {
   Future<void> start({required String userId}) async {
     if (_userId != null) return;
     _userId = userId;
+    // Uma sessão anterior pode ter terminado com o app fechado à força e o
+    // check-in ainda aberto.
+    _repository.clearPresence(userId).catchError(_logWriteError);
     _ticker = Timer.periodic(const Duration(seconds: 3), (_) => _onTick());
     await _listen();
   }
@@ -86,6 +99,8 @@ class PresenceProvider extends ChangeNotifier {
     final subscription = _subscription;
     _subscription = null;
     if (_activeCheckIn != null) _checkOut(DateTime.now());
+    final pendingCheckOut = _pendingCheckOut;
+    _pendingCheckOut = null;
     _userId = null;
     _availability = null;
     _lastFix = null;
@@ -93,6 +108,9 @@ class PresenceProvider extends ChangeNotifier {
     _engine = _createEngine();
     notifyListeners();
     await subscription?.cancel();
+    // O check-out precisa chegar ao servidor antes do logout, senão a pessoa
+    // continua contando na lotação até a presença expirar.
+    await pendingCheckOut?.timeout(const Duration(seconds: 5), onTimeout: () {});
   }
 
   /// Pede a permissão de novo (ex.: depois que o usuário negou uma vez).
@@ -150,7 +168,15 @@ class PresenceProvider extends ChangeNotifier {
   }
 
   void _onTick() {
-    final events = _engine.tick(DateTime.now());
+    final now = DateTime.now();
+    final active = _activeCheckIn;
+    final lastKeepAlive = _lastKeepAlive;
+    if (active != null && (lastKeepAlive == null || now.difference(lastKeepAlive) >= _keepAliveInterval)) {
+      _lastKeepAlive = now;
+      _repository.keepAlive(active).catchError(_logWriteError);
+    }
+
+    final events = _engine.tick(now);
     if (events.isNotEmpty) {
       _apply(events);
       notifyListeners();
@@ -199,7 +225,7 @@ class PresenceProvider extends ChangeNotifier {
   String? _nearestDwellingVenueId() {
     String? nearest;
     var nearestDistance = double.infinity;
-    for (final venue in MockDatabase.instance.venues) {
+    for (final venue in venueCatalog) {
       if (_engine.statusOf(venue.id) != FenceStatus.dwelling) continue;
       final distance = _engine.lastDistanceTo(venue.id) ?? double.infinity;
       if (nearest == null || distance < nearestDistance) {
@@ -219,19 +245,26 @@ class PresenceProvider extends ChangeNotifier {
       venueId: venueId,
       checkedInAt: at,
     );
-    MockDatabase.instance.addCheckIn(checkIn);
+    // A tela reage na hora; a gravação no servidor segue em segundo plano.
     _activeCheckIn = checkIn;
+    _lastKeepAlive = at;
+    _repository.checkIn(checkIn).catchError(_logWriteError);
   }
 
   void _checkOut(DateTime at) {
-    _activeCheckIn?.checkedOutAt = at;
+    final checkIn = _activeCheckIn;
+    if (checkIn == null) return;
+    checkIn.checkedOutAt = at;
     _activeCheckIn = null;
+    _pendingCheckOut = _repository.checkOut(checkIn).catchError(_logWriteError);
   }
+
+  void _logWriteError(Object error) => debugPrint('PresenceProvider: $error');
 
   GeofenceEngine _createEngine() {
     return GeofenceEngine(
       fences: [
-        for (final venue in MockDatabase.instance.venues)
+        for (final venue in venueCatalog)
           Geofence(id: venue.id, center: venue.location, radiusMeters: venue.radiusMeters),
       ],
       config: _simulating ? GeofenceConfig.demo : const GeofenceConfig(),

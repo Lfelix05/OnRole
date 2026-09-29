@@ -36,7 +36,7 @@ class _SearchScreenState extends State<SearchScreen> {
       final posts = postsProvider.posts;
       var personIndex = 0;
       for (var i = 0; i < posts.length; i++) {
-        items.add(_PostCard(post: posts[i], authorName: postsProvider.authorName(posts[i].authorId)));
+        items.add(_PostCard(post: posts[i], authorName: posts[i].authorName));
         if (personIndex < people.length && i.isOdd) {
           items.add(_PersonCard(
             user: people[personIndex],

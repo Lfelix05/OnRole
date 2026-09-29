@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_widgets.dart';
-import 'home_view.dart';
 import 'register_view.dart';
 
 class LoginView extends StatefulWidget {
@@ -18,6 +17,7 @@ class _LoginViewState extends State<LoginView> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _submitting = false;
 
   @override
   void dispose() {
@@ -26,13 +26,16 @@ class _LoginViewState extends State<LoginView> {
     super.dispose();
   }
 
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _submit() async {
+    if (_submitting || !_formKey.currentState!.validate()) return;
+    setState(() => _submitting = true);
 
-    final error = context.read<AuthProvider>().login(
+    final error = await context.read<AuthProvider>().login(
           email: _emailController.text,
           password: _passwordController.text,
         );
+    if (!mounted) return;
+    setState(() => _submitting = false);
 
     if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -41,11 +44,8 @@ class _LoginViewState extends State<LoginView> {
       return;
     }
 
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const HomeView()),
-      (route) => false,
-    );
+    // Com a sessão aberta, a raiz (AuthGate) já mostra o início.
+    Navigator.popUntil(context, (route) => route.isFirst);
   }
 
   Widget _fieldLabel(String text) {
@@ -126,7 +126,10 @@ class _LoginViewState extends State<LoginView> {
                     ),
                   ),
                   const SizedBox(height: 12.0),
-                  GradientButton(label: 'Entrar', onPressed: _submit),
+                  GradientButton(
+                    label: _submitting ? 'Entrando...' : 'Entrar',
+                    onPressed: _submitting ? null : _submit,
+                  ),
                   const SizedBox(height: 32.0),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,

@@ -1,31 +1,33 @@
+/// Perfil público. E-mail e senha ficam só na camada de autenticação.
 class User {
   String id;
   String name;
-  String email;
-  String password;
   String? avatarUrl;
   String? bio;
-  DateTime birthDate;
+
+  /// Só vem preenchida para o próprio usuário (fica num documento privado).
+  DateTime? birthDate;
+
+  /// Check-ins por local (id do local → quantidade): base do match geossocial.
+  Map<String, int> visits;
 
   User({
     required this.id,
     required this.name,
-    required this.email,
-    required this.password,
     this.avatarUrl,
     this.bio,
-    required this.birthDate,
-  });
+    this.birthDate,
+    Map<String, int>? visits,
+  }) : visits = visits ?? {};
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'],
       name: json['name'],
-      email: json['email'],
-      password: json['password'],
       avatarUrl: json['avatarUrl'],
       bio: json['bio'],
-      birthDate: DateTime.parse(json['birthDate']),
+      birthDate: json['birthDate'] == null ? null : DateTime.parse(json['birthDate']),
+      visits: (json['visits'] as Map<String, dynamic>?)?.map((venueId, count) => MapEntry(venueId, count as int)),
     );
   }
 
@@ -33,11 +35,10 @@ class User {
     return {
       'id': id,
       'name': name,
-      'email': email,
-      'password': password,
       'avatarUrl': avatarUrl,
       'bio': bio,
-      'birthDate': birthDate.toIso8601String(),
+      'birthDate': birthDate?.toIso8601String(),
+      'visits': visits,
     };
   }
 }
