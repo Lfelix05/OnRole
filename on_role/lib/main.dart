@@ -7,8 +7,10 @@ import 'data/mock/mock_repositories.dart';
 import 'data/repositories.dart';
 import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
+import 'providers/media_loader.dart';
 import 'providers/posts_provider.dart';
 import 'providers/presence_provider.dart';
+import 'providers/stories_provider.dart';
 import 'providers/venues_provider.dart';
 import 'theme/app_theme.dart';
 import 'view/auth_gate.dart';
@@ -25,11 +27,15 @@ Future<void> main() async {
 Future<Repositories> _createRepositories() async {
   if (_useMockBackend) return createMockRepositories();
   try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
     return createFirebaseRepositories();
   } on UnsupportedError catch (error) {
     // Plataformas sem Firebase configurado (ex.: Windows) usam o mock.
-    debugPrint('Firebase indisponível nesta plataforma, usando dados mock. $error');
+    debugPrint(
+      'Firebase indisponível nesta plataforma, usando dados mock. $error',
+    );
     return createMockRepositories();
   }
 }
@@ -44,15 +50,35 @@ class MainApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => AuthProvider(auth: repositories.auth, users: repositories.users),
+          create: (_) =>
+              AuthProvider(auth: repositories.auth, users: repositories.users),
+        ),
+        Provider(create: (_) => MediaLoader(repositories.media)),
+        ChangeNotifierProvider(
+          create: (context) => PostsProvider(
+            repository: repositories.posts,
+            media: repositories.media,
+            loader: context.read<MediaLoader>(),
+            auth: context.read<AuthProvider>(),
+          ),
         ),
         ChangeNotifierProvider(
-          create: (context) => PostsProvider(repository: repositories.posts, auth: context.read<AuthProvider>()),
+          create: (context) => StoriesProvider(
+            repository: repositories.stories,
+            media: repositories.media,
+            loader: context.read<MediaLoader>(),
+            auth: context.read<AuthProvider>(),
+          ),
         ),
         ChangeNotifierProvider(
-          create: (context) => VenuesProvider(repository: repositories.presence, auth: context.read<AuthProvider>()),
+          create: (context) => VenuesProvider(
+            repository: repositories.presence,
+            auth: context.read<AuthProvider>(),
+          ),
         ),
-        ChangeNotifierProvider(create: (_) => PresenceProvider(repository: repositories.presence)),
+        ChangeNotifierProvider(
+          create: (_) => PresenceProvider(repository: repositories.presence),
+        ),
       ],
       child: MaterialApp(
         title: 'OnRolê',

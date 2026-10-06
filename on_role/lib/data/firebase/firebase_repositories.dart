@@ -4,9 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 
 import '../../models/check_in.dart';
-import '../../models/posts.dart';
 import '../../models/user.dart';
 import '../repositories.dart';
+import 'firebase_social_repositories.dart';
 
 // Estrutura do Firestore (as regras de acesso estão em firestore.rules):
 //
@@ -14,7 +14,7 @@ import '../repositories.dart';
 //   users/{uid}/private/account    só o dono: email, birthDate
 //   users/{uid}/checkins/{id}      só o dono: venueId, checkedInAt, checkedOutAt
 //   presence/{uid}                 onde o usuário está agora: venueId, since, lastSeenAt
-//   posts/{id}                     feed: authorId, authorName, venueId, content, createdAt, expiresAt
+//   posts, stories e media         ver firebase_social_repositories.dart
 //
 // Nenhum documento guarda coordenadas: a geocerca roda no aparelho e só o
 // local do check-in sobe para o servidor.
@@ -28,6 +28,8 @@ Repositories createFirebaseRepositories() {
     users: FirebaseUserRepository(db),
     presence: FirebasePresenceRepository(db),
     posts: FirebasePostRepository(db),
+    stories: FirebaseStoryRepository(db),
+    media: FirebaseMediaRepository(db),
   );
 }
 
@@ -270,61 +272,5 @@ class FirebasePresenceRepository implements PresenceRepository {
       },
     );
     return controller.stream;
-  }
-}
-
-class FirebasePostRepository implements PostRepository {
-  FirebasePostRepository(this._db);
-
-  final FirebaseFirestore _db;
-
-  @override
-  Stream<List<Posts>> watchFeed() {
-    // expiresAt = createdAt + postLifetime, então ordenar pela expiração é o
-    // mesmo que ordenar pela criação, e dispensa índice composto.
-    return _db
-        .collection('posts')
-        .where('expiresAt', isGreaterThan: Timestamp.now())
-        .orderBy('expiresAt', descending: true)
-        .limit(100)
-        .snapshots()
-        .map((snapshot) {
-      final now = DateTime.now();
-      return [
-        for (final doc in snapshot.docs) _postFromDoc(doc),
-      ].where((post) => post.expiresAt.isAfter(now)).toList();
-    });
-  }
-
-  @override
-  Future<void> addPost({required User author, required String venueId, required String content}) async {
-    await _db.collection('posts').add({
-      'authorId': author.id,
-      'authorName': author.name,
-      'venueId': venueId,
-      'title': 'Novo rolê',
-      'content': content,
-      'type': PostType.text.name,
-      'createdAt': FieldValue.serverTimestamp(),
-      'expiresAt': Timestamp.fromDate(DateTime.now().add(postLifetime)),
-    });
-  }
-
-  static Posts _postFromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data();
-    // Post recém-enviado ainda não tem a hora do servidor.
-    final createdAt = (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
-    return Posts(
-      id: doc.id,
-      title: data['title'] as String? ?? '',
-      content: data['content'] as String? ?? '',
-      type: PostType.values.asNameMap()[data['type']] ?? PostType.text,
-      authorId: data['authorId'] as String? ?? '',
-      authorName: data['authorName'] as String? ?? 'Usuário',
-      venueId: data['venueId'] as String?,
-      createdAt: createdAt,
-      updatedAt: createdAt,
-      expiresAt: (data['expiresAt'] as Timestamp?)?.toDate() ?? createdAt.add(postLifetime),
-    );
   }
 }

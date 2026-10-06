@@ -4,6 +4,10 @@
     <!-- Localização para o mapa e o check-in automático por geocerca. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- Câmera do app (fotos e vídeos para posts e stories). A galeria usa o
+         seletor de fotos do sistema e não precisa de permissão. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <application
         android:label="on_role"
         android:name="${applicationName}"

@@ -3,7 +3,8 @@ rules_version = '2';
 // Regras de segurança do OnRolê:
 // - só usuários logados leem dados;
 // - cada usuário só escreve os próprios dados;
-// - post só é aceito com presença ativa no mesmo local (check-in por geocerca);
+// - qualquer pessoa logada posta; o selo "no rolê agora" (atVenue) só é
+//   aceito com presença ativa no local (check-in por geocerca);
 // - nenhuma coleção guarda coordenadas: a presença é sempre por local.
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -74,24 +75,120 @@ service cloud.firestore {
       allow delete: if isSelf(uid);
     }
 
-    // Posts efêmeros do feed ("Instagram do agora"). A política de TTL do
-    // Firestore apaga cada post depois de expiresAt.
+    // Local marcado num post/story: livre ("bora no Boteco?"), mas o selo
+    // "no rolê agora" exige presença ativa nele.
+    function validVenueTag(data) {
+      return (data.venueId == null || data.venueId is string)
+        && data.atVenue is bool
+        && (data.atVenue == false || hasActivePresenceAt(data.venueId));
+    }
+
+    // Curtir/descurtir: só muda likedBy, e só com o próprio id.
+    function isLikeToggle() {
+      let before = resource.data.get('likedBy', []).toSet();
+      let after = request.resource.data.get('likedBy', []).toSet();
+      let me = [request.auth.uid].toSet();
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy'])
+        && ((after.difference(before) == me && before.difference(after).size() == 0)
+          || (before.difference(after) == me && after.difference(before).size() == 0));
+    }
+
+    // Nova resposta: o contador sobe 1 e lastReplyId aponta para uma resposta
+    // criada no mesmo lote. Sem isso, qualquer um inflaria o contador.
+    function isReplyAdded(postId) {
+      let reply = /databases/$(database)/documents/posts/$(postId)/replies/$(request.resource.data.lastReplyId);
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['replyCount', 'lastReplyId'])
+        && request.resource.data.replyCount == resource.data.get('replyCount', 0) + 1
+        && !exists(reply)
+        && existsAfter(reply);
+    }
+
+    // Posts do feed: texto e/ou até 4 fotos/vídeos.
     match /posts/{postId} {
       allow read: if signedIn();
       allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['authorId', 'authorName', 'venueId', 'title', 'content', 'type', 'createdAt', 'expiresAt'])
+        && request.resource.data.keys().hasAll(['authorId', 'authorName', 'text', 'media', 'venueId', 'atVenue', 'likedBy', 'replyCount', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['authorId', 'authorName', 'text', 'media', 'venueId', 'atVenue', 'likedBy', 'replyCount', 'createdAt'])
         && request.resource.data.authorId == request.auth.uid
         && validName(request.resource.data.authorName)
-        && request.resource.data.content is string
-        && request.resource.data.content.size() > 0
-        && request.resource.data.content.size() <= 500
-        && request.resource.data.type == 'text'
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 500
+        && request.resource.data.media is list
+        && request.resource.data.media.size() <= 4
+        && (request.resource.data.text.size() > 0 || request.resource.data.media.size() > 0)
+        && request.resource.data.likedBy == []
+        && request.resource.data.replyCount == 0
+        && request.resource.data.createdAt == request.time
+        && validVenueTag(request.resource.data);
+      allow update: if signedIn() && (isLikeToggle() || isReplyAdded(postId));
+      allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+
+      match /replies/{replyId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['authorId', 'authorName', 'text', 'createdAt'])
+          && request.resource.data.authorId == request.auth.uid
+          && validName(request.resource.data.authorName)
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 500
+          && request.resource.data.createdAt == request.time
+          // O contador do post sobe no mesmo lote (ver isReplyAdded).
+          && getAfter(/databases/$(database)/documents/posts/$(postId)).data.lastReplyId == replyId;
+        allow update, delete: if false;
+      }
+    }
+
+    // Stories: uma foto ou vídeo que vale por 24 horas. Sem a exclusão
+    // automática (TTL, do plano pago), o próprio autor apaga os vencidos.
+    match /stories/{storyId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['authorId', 'authorName', 'media', 'venueId', 'atVenue', 'createdAt', 'expiresAt'])
+        && request.resource.data.authorId == request.auth.uid
+        && validName(request.resource.data.authorName)
+        && request.resource.data.media is map
         && request.resource.data.createdAt == request.time
         && request.resource.data.expiresAt > request.time
-        && request.resource.data.expiresAt <= request.time + duration.value(13, 'h')
-        && hasActivePresenceAt(request.resource.data.venueId);
-      allow update: if false;
+        && request.resource.data.expiresAt <= request.time + duration.value(25, 'h')
+        && validVenueTag(request.resource.data);
       allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+    }
+
+    // Fotos e vídeos guardados no próprio banco (o Cloud Storage exige o
+    // plano pago): um documento de metadados e os bytes em pedaços.
+    match /media/{mediaId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['ownerId', 'kind', 'mimeType', 'size', 'chunkCount', 'createdAt'])
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.kind in ['image', 'video']
+        && request.resource.data.mimeType is string
+        && request.resource.data.size is int
+        && request.resource.data.size > 0
+        && request.resource.data.size <= 10485760
+        && request.resource.data.chunkCount is int
+        && request.resource.data.chunkCount >= 1
+        && request.resource.data.chunkCount <= 12
+        && request.resource.data.createdAt == request.time;
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+
+      function mediaDoc() {
+        return get(/databases/$(database)/documents/media/$(mediaId)).data;
+      }
+
+      // Cada pedaço só entra depois dos metadados, do mesmo dono e dentro da
+      // quantidade declarada. Pedaços nunca são alterados.
+      match /chunks/{index} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && mediaDoc().ownerId == request.auth.uid
+          && int(index) < mediaDoc().chunkCount
+          && request.resource.data.keys().hasOnly(['data'])
+          && request.resource.data.data is bytes
+          && request.resource.data.data.size() <= 950000;
+        allow delete: if signedIn() && mediaDoc().ownerId == request.auth.uid;
+      }
     }
   }
 }

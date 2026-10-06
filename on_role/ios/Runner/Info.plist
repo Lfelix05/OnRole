@@ -45,6 +45,12 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>O OnRolê usa a câmera para você postar fotos e vídeos do rolê.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>O OnRolê usa o microfone para gravar o som dos seus vídeos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>O OnRolê acessa suas fotos para você escolher o que postar.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>O OnRolê usa sua localização para mostrar o movimento perto de você e fazer o check-in automático nos locais.</string>
 </dict>
