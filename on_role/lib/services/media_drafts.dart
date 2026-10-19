@@ -42,6 +42,19 @@ Future<List<MediaDraft>> pickFromGallery({int limit = maxPostMedia}) async {
   return [for (final file in files.take(limit)) await draftFromFile(file)];
 }
 
+/// Foto de perfil, da câmera do sistema ou da galeria. Null se cancelar.
+Future<MediaDraft?> pickProfilePhoto(ImageSource source) async {
+  final file = await ImagePicker().pickImage(
+    source: source,
+    maxWidth: 1080,
+    maxHeight: 1080,
+    imageQuality: 80,
+    preferredCameraDevice: CameraDevice.front,
+  );
+  if (file == null) return null;
+  return imageDraft(await file.readAsBytes());
+}
+
 Future<MediaDraft> draftFromFile(XFile file) async {
   final bytes = await file.readAsBytes();
   final mimeType = file.mimeType ?? _mimeTypeFromName(file.name);

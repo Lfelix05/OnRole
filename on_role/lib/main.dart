@@ -7,6 +7,8 @@ import 'data/mock/mock_repositories.dart';
 import 'data/repositories.dart';
 import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
+import 'providers/experiment_provider.dart';
+import 'providers/match_provider.dart';
 import 'providers/media_loader.dart';
 import 'providers/posts_provider.dart';
 import 'providers/presence_provider.dart';
@@ -50,8 +52,26 @@ class MainApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) =>
-              AuthProvider(auth: repositories.auth, users: repositories.users),
+          create: (_) => AuthProvider(
+            auth: repositories.auth,
+            users: repositories.users,
+            media: repositories.media,
+          ),
+        ),
+        // Criado já de início (lazy: false) para registrar o experimento
+        // desde a abertura do app.
+        ChangeNotifierProvider(
+          lazy: false,
+          create: (context) => ExperimentProvider(
+            repository: repositories.experiment,
+            auth: context.read<AuthProvider>(),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => MatchProvider(
+            repository: repositories.matches,
+            auth: context.read<AuthProvider>(),
+          ),
         ),
         Provider(create: (_) => MediaLoader(repositories.media)),
         ChangeNotifierProvider(
@@ -77,7 +97,10 @@ class MainApp extends StatelessWidget {
           ),
         ),
         ChangeNotifierProvider(
-          create: (_) => PresenceProvider(repository: repositories.presence),
+          create: (context) => PresenceProvider(
+            repository: repositories.presence,
+            telemetry: context.read<ExperimentProvider>(),
+          ),
         ),
       ],
       child: MaterialApp(

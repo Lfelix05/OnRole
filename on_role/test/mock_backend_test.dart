@@ -69,7 +69,7 @@ void main() {
     });
 
     test('cadastro entra na conta nova e recusa e-mail repetido', () async {
-      final error = await auth.register(
+      final result = await auth.register(
         name: 'Nova Pessoa',
         email: 'nova@onrole.com',
         password: 'segredo',
@@ -77,7 +77,8 @@ void main() {
       );
       await settle();
 
-      expect(error, isNull);
+      expect(result.error, isNull);
+      expect(result.warning, isNull);
       expect(auth.currentUser?.name, 'Nova Pessoa');
       expect(
         auth.otherUsers.map((user) => user.name),
@@ -90,7 +91,34 @@ void main() {
         password: 'segredo',
         birthDate: DateTime(2001, 5, 20),
       );
-      expect(repeated, 'Já existe uma conta com esse e-mail.');
+      expect(repeated.error, 'Já existe uma conta com esse e-mail.');
+    });
+
+    test('cadastro com foto já cria o perfil com ela', () async {
+      final withMedia = AuthProvider(
+        auth: repositories.auth,
+        users: repositories.users,
+        media: repositories.media,
+      );
+      final photo = MediaDraft(
+        bytes: Uint8List.fromList([1, 2, 3]),
+        kind: MediaKind.image,
+        mimeType: 'image/jpeg',
+        aspectRatio: 1,
+      );
+      final result = await withMedia.register(
+        name: 'Com Foto',
+        email: 'foto@onrole.com',
+        password: 'segredo',
+        birthDate: DateTime(2001, 5, 20),
+        photo: photo,
+      );
+      await settle();
+
+      expect(result, (error: null, warning: null));
+      final saved = withMedia.currentUser!.photo!;
+      expect(await repositories.media.load(saved), photo.bytes);
+      withMedia.dispose();
     });
 
     test('logout encerra a sessão', () async {
@@ -112,12 +140,12 @@ void main() {
       await repositories.posts.addPost(
         author: author,
         text: 'Alguém no Boteco às 22h?',
-        venueId: 'boteco-central',
+        venueId: 'bakhanas',
       );
 
       final feed = await repositories.posts.watchFeed().first;
       expect(feed[0].text, 'Alguém no Boteco às 22h?');
-      expect(feed[0].venueId, 'boteco-central');
+      expect(feed[0].venueId, 'bakhanas');
       expect(feed[0].atVenue, isFalse);
       expect(feed[1].text, 'Bora hoje?');
     });
@@ -129,17 +157,17 @@ void main() {
         repositories.posts.addPost(
           author: author,
           text: 'Tô aqui!',
-          venueId: 'boteco-central',
+          venueId: 'bakhanas',
           atVenue: true,
         ),
         throwsStateError,
       );
 
-      await repositories.presence.checkIn(checkInAt('boteco-central'));
+      await repositories.presence.checkIn(checkInAt('bakhanas'));
       await repositories.posts.addPost(
         author: author,
         text: 'Tô aqui!',
-        venueId: 'boteco-central',
+        venueId: 'bakhanas',
         atVenue: true,
       );
       final feed = await repositories.posts.watchFeed().first;
@@ -221,6 +249,25 @@ void main() {
       expect(await repositories.media.load(ref), bytes);
     });
 
+    test('envios seguidos não trocam uma mídia pela outra', () async {
+      final refs = [
+        for (var i = 0; i < 20; i++)
+          await repositories.media.upload(
+            ownerId: 'demo-user',
+            draft: MediaDraft(
+              bytes: Uint8List.fromList([i]),
+              kind: MediaKind.image,
+              mimeType: 'image/jpeg',
+              aspectRatio: 1,
+            ),
+          ),
+      ];
+      expect(refs.map((ref) => ref.id).toSet(), hasLength(20));
+      for (var i = 0; i < refs.length; i++) {
+        expect(await repositories.media.load(refs[i]), [i]);
+      }
+    });
+
     test('recusa arquivos acima do limite', () async {
       final huge = MediaDraft(
         bytes: Uint8List(maxMediaBytes + 1),
@@ -269,7 +316,7 @@ void main() {
 
   group('presença', () {
     test('check-in e check-out mudam a lotação do local', () async {
-      const venueId = 'boteco-central';
+      const venueId = 'bakhanas';
       final baseline = demoCrowdBaseline[venueId]!;
       Future<int> crowd() async =>
           (await repositories.presence.watchCrowd().first)[venueId]!;
@@ -286,19 +333,23 @@ void main() {
     });
 
     test('cada check-in conta uma visita no perfil (base do match)', () async {
-      await repositories.presence.checkIn(checkInAt('praca-municipal'));
+      final before = Map.of(db.findUserById('demo-user')!.visits);
+      await repositories.presence.checkIn(checkInAt('area-verde'));
       await repositories.presence.checkIn(
-        checkInAt('praca-municipal', userId: 'demo-user'),
+        checkInAt('area-verde', userId: 'demo-user'),
       );
 
-      expect(db.findUserById('demo-user')!.visits, {'praca-municipal': 2});
+      expect(db.findUserById('demo-user')!.visits, {
+        ...before,
+        'area-verde': (before['area-verde'] ?? 0) + 2,
+      });
     });
 
     test('limpar a presença fecha check-ins que sobraram', () async {
-      await repositories.presence.checkIn(checkInAt('area-eventos'));
+      await repositories.presence.checkIn(checkInAt('bunker-music-house'));
       await repositories.presence.clearPresence('demo-user');
 
-      expect(db.activeCheckInsAt('area-eventos'), 0);
+      expect(db.activeCheckInsAt('bunker-music-house'), 0);
     });
   });
 }

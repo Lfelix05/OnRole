@@ -49,7 +49,7 @@ class MockPostRepository implements PostRepository {
     final now = DateTime.now();
     _db.addPost(
       Posts(
-        id: now.microsecondsSinceEpoch.toString(),
+        id: _db.newId('post'),
         authorId: author.id,
         authorName: author.name,
         text: text,
@@ -89,7 +89,7 @@ class MockPostRepository implements PostRepository {
     }
     _db.addReply(
       Reply(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        id: _db.newId('reply'),
         postId: postId,
         authorId: author.id,
         authorName: author.name,
@@ -134,7 +134,7 @@ class MockStoryRepository implements StoryRepository {
     final now = DateTime.now();
     _db.addStory(
       Story(
-        id: now.microsecondsSinceEpoch.toString(),
+        id: _db.newId('story'),
         authorId: author.id,
         authorName: author.name,
         media: media,
@@ -176,7 +176,7 @@ class MockMediaRepository implements MediaRepository {
     for (var i = 1; i <= chunkCount; i++) {
       onProgress?.call(i / chunkCount);
     }
-    final id = 'media-${DateTime.now().microsecondsSinceEpoch}';
+    final id = _db.newId('media');
     _db.putMedia(id, draft.bytes);
     return MediaRef(
       id: id,

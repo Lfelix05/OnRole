@@ -6,11 +6,13 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/venue.dart';
+import '../../providers/experiment_provider.dart';
 import '../../providers/presence_provider.dart';
 import '../../providers/venues_provider.dart';
 import '../../services/geo.dart';
 import '../../services/location_service.dart';
 import '../../theme/app_theme.dart';
+import '../experiment_screen.dart';
 import '../widgets/heatmap_layer.dart';
 
 class MapScreen extends StatefulWidget {
@@ -58,15 +60,28 @@ class _MapScreenState extends State<MapScreen> {
   final _searchController = TextEditingController();
   String? _selectedVenueId;
   bool _showHeatmap = true;
+  late final ExperimentProvider _experiment;
+
+  @override
+  void initState() {
+    super.initState();
+    // H2/H4: quanto tempo leva para achar um local e quão fluido é o mapa.
+    _experiment = context.read<ExperimentProvider>()
+      ..log('map_open')
+      ..startFrameSampling('map');
+  }
 
   @override
   void dispose() {
+    _experiment.stopFrameSampling();
     _mapController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _focusVenue(Venue venue) {
+  /// [source]: de onde veio a escolha (pin, search ou card).
+  void _focusVenue(Venue venue, String source) {
+    _experiment.log('venue_select', {'venueId': venue.id, 'source': source});
     FocusScope.of(context).unfocus();
     _searchController.clear();
     setState(() => _selectedVenueId = venue.id);
@@ -98,6 +113,7 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     final venuesProvider = context.watch<VenuesProvider>();
     final presence = context.watch<PresenceProvider>();
+    final enrolled = context.select<ExperimentProvider, bool>((experiment) => experiment.isEnrolled);
     final venues = venuesProvider.venues;
     final selectedVenue = venuesProvider.venueById(_selectedVenueId);
     final checkedInVenue = presence.checkedInVenue;
@@ -189,7 +205,7 @@ class _MapScreenState extends State<MapScreen> {
                         count: venuesProvider.crowdAt(venue.id),
                         selected: venue == selectedVenue,
                         checkedIn: venue == checkedInVenue,
-                        onTap: () => _focusVenue(venue),
+                        onTap: () => _focusVenue(venue, 'pin'),
                       ),
                     ),
                 ],
@@ -207,7 +223,7 @@ class _MapScreenState extends State<MapScreen> {
                     _SearchResults(
                       venues: searchResults,
                       crowdAt: venuesProvider.crowdAt,
-                      onSelected: _focusVenue,
+                      onSelected: (venue) => _focusVenue(venue, 'search'),
                     )
                   else if (_searchController.text.trim().isNotEmpty)
                     const _SearchEmpty(),
@@ -231,6 +247,14 @@ class _MapScreenState extends State<MapScreen> {
                     const Spacer(),
                     Column(
                       children: [
+                        if (enrolled) ...[
+                          _MapButton(
+                            icon: Icons.edit_note,
+                            tooltip: 'Diário de campo',
+                            onPressed: () => showFieldDiary(context),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
                         if (PresenceProvider.simulationAvailable) ...[
                           _MapButton(
                             icon: Icons.science_outlined,
@@ -265,7 +289,7 @@ class _MapScreenState extends State<MapScreen> {
                     distance: presence.distanceTo(cardVenue),
                     isHottestHighlight: selectedVenue == null,
                     checkedIn: cardVenue == checkedInVenue,
-                    onTap: () => _focusVenue(cardVenue),
+                    onTap: () => _focusVenue(cardVenue, 'card'),
                   ),
                 ],
               ],

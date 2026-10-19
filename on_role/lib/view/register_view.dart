@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/media.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_widgets.dart';
+import 'edit_profile_screen.dart';
+import 'experiment_screen.dart';
 
 class RegisterView extends StatefulWidget {
   const RegisterView({super.key});
@@ -19,6 +22,7 @@ class _RegisterViewState extends State<RegisterView> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   DateTime? _birthDate;
+  MediaDraft? _photo;
   bool _submitting = false;
 
   @override
@@ -53,6 +57,11 @@ class _RegisterViewState extends State<RegisterView> {
     }
   }
 
+  Future<void> _pickPhoto() async {
+    final photo = await chooseProfilePhoto(context);
+    if (photo != null && mounted) setState(() => _photo = photo);
+  }
+
   Future<void> _submit() async {
     if (_submitting || !_formKey.currentState!.validate()) return;
     if (_birthDate == null) {
@@ -63,24 +72,31 @@ class _RegisterViewState extends State<RegisterView> {
     }
     setState(() => _submitting = true);
 
-    final error = await context.read<AuthProvider>().register(
+    final result = await context.read<AuthProvider>().register(
           name: _nameController.text,
           email: _emailController.text,
           password: _passwordController.text,
           birthDate: _birthDate!,
+          photo: _photo,
         );
     if (!mounted) return;
     setState(() => _submitting = false);
 
+    final messenger = ScaffoldMessenger.of(context);
+    final error = result.error;
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error)),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(error)));
       return;
     }
+    final warning = result.warning;
+    if (warning != null) messenger.showSnackBar(SnackBar(content: Text(warning)));
 
-    // Com a sessão aberta, a raiz (AuthGate) já mostra o início.
-    Navigator.popUntil(context, (route) => route.isFirst);
+    // Com a sessão aberta, a raiz (AuthGate) já mostra o início. O convite
+    // para o experimento abre depois de voltar à raiz: aberto antes, o
+    // popUntil o fecharia junto com esta tela.
+    final navigator = Navigator.of(context);
+    navigator.popUntil((route) => route.isFirst);
+    inviteToExperiment(navigator.context);
   }
 
   @override
@@ -115,25 +131,43 @@ class _RegisterViewState extends State<RegisterView> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   Center(
-                    child: Stack(
-                      children: [
-                        const CircleAvatar(
-                          radius: 44.0,
-                          backgroundColor: AppColors.surfaceHigh,
-                          child: Icon(Icons.person_outline, color: AppColors.textSecondary, size: 44.0),
+                    child: Semantics(
+                      button: true,
+                      label: _photo == null ? 'Adicionar foto de perfil' : 'Trocar foto de perfil',
+                      child: GestureDetector(
+                        onTap: _submitting ? null : _pickPhoto,
+                        child: Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 44.0,
+                              backgroundColor: AppColors.surfaceHigh,
+                              foregroundImage: _photo == null ? null : MemoryImage(_photo!.bytes),
+                              child: const Icon(Icons.person_outline, color: AppColors.textSecondary, size: 44.0),
+                            ),
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: Container(
+                                width: 26.0,
+                                height: 26.0,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: AppColors.background, width: 2),
+                                ),
+                                child: Icon(_photo == null ? Icons.add : Icons.edit, color: Colors.white, size: 14.0),
+                              ),
+                            ),
+                          ],
                         ),
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            width: 26.0,
-                            height: 26.0,
-                            decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-                            child: const Icon(Icons.add, color: Colors.white, size: 16.0),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
+                  ),
+                  const SizedBox(height: 8.0),
+                  Text(
+                    _photo == null ? 'Toque para adicionar uma foto' : 'Toque para trocar a foto',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: AppColors.textTertiary, fontSize: 12.0),
                   ),
                   const SizedBox(height: 28.0),
                   TextFormField(

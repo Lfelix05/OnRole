@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import '../../models/check_in.dart';
+import '../../models/media.dart';
 import '../../models/user.dart';
 import '../../services/crowd_simulator.dart';
+import '../interest_catalog.dart';
 import '../repositories.dart';
 import '../venue_catalog.dart';
 import 'mock_database.dart';
+import 'mock_match_repositories.dart';
 import 'mock_social_repositories.dart';
 
 /// Repositórios em memória, com a lotação dos locais simulada.
@@ -24,6 +27,8 @@ Repositories createMockRepositories({
     posts: MockPostRepository(db),
     stories: MockStoryRepository(db),
     media: MockMediaRepository(db),
+    matches: MockMatchRepository(db),
+    experiment: MockExperimentRepository(db),
   );
 }
 
@@ -49,7 +54,7 @@ class MockAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> register({
+  Future<String> register({
     required String name,
     required String email,
     required String password,
@@ -59,12 +64,13 @@ class MockAuthRepository implements AuthRepository {
       throw const AuthException('Já existe uma conta com esse e-mail.');
     }
     final user = User(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      id: _db.newId('user'),
       name: name.trim(),
       birthDate: birthDate,
     );
     _db.addUser(user, email: email.trim(), password: password);
     _setCurrent(user);
+    return user.id;
   }
 
   @override
@@ -83,6 +89,19 @@ class MockUserRepository implements UserRepository {
 
   @override
   Stream<List<User>> watchUsers() => watchValue(_db.changes, () => _db.users);
+
+  @override
+  Future<void> updateProfile(
+    String userId, {
+    required String? bio,
+    required List<String> interests,
+    MediaRef? photo,
+  }) async {
+    if ((bio?.length ?? 0) > 200 || interests.length > maxInterests) {
+      throw StateError('Perfil fora dos limites.');
+    }
+    _db.updateProfile(userId, bio: bio, interests: interests, photo: photo);
+  }
 }
 
 class MockPresenceRepository implements PresenceRepository {

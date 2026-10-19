@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/user.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/posts_provider.dart';
 import '../../providers/presence_provider.dart';
@@ -10,6 +11,7 @@ import '../compose_screen.dart';
 import '../post_detail_screen.dart';
 import '../widgets/post_card.dart';
 import '../widgets/stories_bar.dart';
+import '../widgets/user_avatar.dart';
 
 /// Início: stories no topo e o feed no estilo do Threads, com os posts mais
 /// recentes primeiro.
@@ -49,7 +51,7 @@ class FeedScreen extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
-                      InitialAvatar(name: me?.name ?? '?', radius: 18),
+                      if (me != null) UserAvatar(user: me, radius: 18),
                     ],
                   ),
                 ),
@@ -84,7 +86,7 @@ class FeedScreen extends StatelessWidget {
                 ),
               const SliverToBoxAdapter(child: StoriesBar()),
               const SliverToBoxAdapter(child: Divider(height: 1)),
-              SliverToBoxAdapter(child: _ComposePrompt(name: me?.name ?? '?')),
+              SliverToBoxAdapter(child: _ComposePrompt(user: me)),
               const SliverToBoxAdapter(child: Divider(height: 1)),
               if (!postsProvider.isLoaded)
                 const SliverFillRemaining(
@@ -138,9 +140,9 @@ class FeedScreen extends StatelessWidget {
 
 /// Atalho no topo do feed, como no Threads.
 class _ComposePrompt extends StatelessWidget {
-  const _ComposePrompt({required this.name});
+  const _ComposePrompt({required this.user});
 
-  final String name;
+  final User? user;
 
   @override
   Widget build(BuildContext context) {
@@ -150,7 +152,9 @@ class _ComposePrompt extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            InitialAvatar(name: name, radius: 18),
+            user == null
+                ? const InitialAvatar(name: '?', radius: 18)
+                : UserAvatar(user: user!, radius: 18),
             const SizedBox(width: 12),
             const Expanded(
               child: Text(

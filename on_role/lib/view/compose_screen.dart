@@ -13,6 +13,7 @@ import '../theme/app_theme.dart';
 import '../theme/app_widgets.dart';
 import 'camera_screen.dart';
 import 'widgets/post_card.dart';
+import 'widgets/user_avatar.dart';
 
 const _maxTextLength = 500;
 
@@ -205,7 +206,9 @@ class _ComposeScreenState extends State<ComposeScreen> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    InitialAvatar(name: author?.name ?? '?', radius: 18),
+                    author == null
+                        ? const InitialAvatar(name: '?', radius: 18)
+                        : UserAvatar(user: author, radius: 18),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(

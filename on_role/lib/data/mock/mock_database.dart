@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import '../../models/check_in.dart';
+import '../../models/match.dart';
+import '../../models/media.dart';
 import '../../models/posts.dart';
 import '../../models/reply.dart';
 import '../../models/story.dart';
@@ -41,6 +43,12 @@ class MockDatabase {
   final List<Story> _stories = [];
   final Map<String, Uint8List> _media = {};
   final List<CheckIn> _checkIns = [];
+
+  /// Chave "quem_avaliou_quem".
+  final Map<String, Swipe> _swipes = {};
+  final List<UserMatch> _matches = [];
+  final Set<String> _enrolled = {};
+  final Map<String, List<Map<String, Object?>>> _telemetry = {};
   final _changes = StreamController<void>.broadcast();
 
   /// Avisa a cada alteração, para os repositórios emitirem dados novos.
@@ -150,6 +158,67 @@ class MockDatabase {
     );
   }
 
+  void updateProfile(
+    String userId, {
+    required String? bio,
+    required List<String> interests,
+    MediaRef? photo,
+  }) {
+    final user = findUserById(userId);
+    if (user == null) return;
+    user
+      ..bio = bio
+      ..interests = List.of(interests)
+      ..photo = photo ?? user.photo;
+    _notify();
+  }
+
+  Swipe? swipeOf(String fromId, String toId) => _swipes['${fromId}_$toId'];
+
+  Set<String> swipedIdsOf(String userId) => {
+    for (final swipe in _swipes.values)
+      if (swipe.fromId == userId) swipe.toId,
+  };
+
+  void putSwipe(Swipe swipe) {
+    _swipes['${swipe.fromId}_${swipe.toId}'] = swipe;
+    _notify();
+  }
+
+  List<UserMatch> matchesOf(String userId) =>
+      _matches.where((match) => match.userIds.contains(userId)).toList();
+
+  /// Cria o match se ainda não existe. Devolve se criou.
+  bool addMatch(UserMatch match) {
+    if (_matches.any((existing) => existing.id == match.id)) return false;
+    _matches.add(match);
+    _notify();
+    return true;
+  }
+
+  bool isEnrolled(String userId) => _enrolled.contains(userId);
+
+  void setEnrolled(String userId, bool enrolled) {
+    enrolled ? _enrolled.add(userId) : _enrolled.remove(userId);
+  }
+
+  /// Eventos do experimento enviados por cada pessoa.
+  List<Map<String, Object?>> telemetryOf(String userId) =>
+      List.unmodifiable(_telemetry[userId] ?? const []);
+
+  void addTelemetry(String userId, List<Map<String, Object?>> events) {
+    (_telemetry[userId] ??= []).addAll(events);
+  }
+
+  void clearTelemetry(String userId) => _telemetry.remove(userId);
+
+  int _idSequence = 0;
+
+  /// Id único para o que é criado em memória. Só o relógio não basta: no
+  /// Windows, duas gravações seguidas podem cair no mesmo microssegundo.
+  String newId(String prefix) =>
+      '$prefix-${DateTime.now().microsecondsSinceEpoch}-${_idSequence++}';
+
   void _notify() => _changes.add(null);
 
   void _seed() {
@@ -158,21 +227,57 @@ class MockDatabase {
       name: 'Convidado Demo',
       birthDate: DateTime(2000, 1, 1),
       bio: 'Conta de demonstração do OnRolê.',
+      interests: ['Bar', 'Samba e pagode', 'Show ao vivo'],
+      visits: {'bakhanas': 3, 'area-verde': 1},
     );
-    final ana = User(id: 'ana', name: 'Ana Souza', bio: 'Sempre no rolê.');
-    final pedro = User(id: 'pedro', name: 'Pedro Lima');
-    _users.addAll([demo, ana, pedro]);
+    final ana = User(
+      id: 'ana',
+      name: 'Ana Souza',
+      bio: 'Sempre no rolê.',
+      interests: ['Bar', 'Samba e pagode', 'Balada'],
+      visits: {'bakhanas': 2, 'caza-up': 1},
+    );
+    final pedro = User(
+      id: 'pedro',
+      name: 'Pedro Lima',
+      interests: ['Show ao vivo', 'Rock'],
+      visits: {'bunker-music-house': 4},
+    );
+    final julia = User(
+      id: 'julia',
+      name: 'Júlia Rocha',
+      bio: 'Forró no sábado, praça no domingo.',
+      interests: ['Forró', 'Praça e ar livre', 'MPB'],
+      visits: {'caraiva-beach-bar': 2, 'cervejaria-divina-beer': 3},
+    );
+    final rafa = User(
+      id: 'rafa',
+      name: 'Rafa Mendes',
+      interests: ['Eletrônica', 'Balada'],
+      visits: {'caza-up': 5},
+    );
+    _users.addAll([demo, ana, pedro, julia, rafa]);
     _accounts['demo@onrole.com'] = (userId: demo.id, password: '123456');
 
     DateTime ago(Duration age) => DateTime.now().subtract(age);
+
+    // A Ana já curtiu o usuário demo: curtindo de volta, sai um match.
+    _swipes['ana_demo-user'] = Swipe(
+      fromId: ana.id,
+      toId: demo.id,
+      decision: SwipeDecision.like,
+      source: SuggestionSource.afinidade,
+      score: 0.6,
+      createdAt: ago(const Duration(hours: 1)),
+    );
 
     _posts.addAll([
       Posts(
         id: 'seed-ana',
         authorId: ana.id,
         authorName: ana.name,
-        text: 'Alguém topa o Boteco Central hoje? Chego lá pelas 22h 🍻',
-        venueId: 'boteco-central',
+        text: "Alguém topa o BAKHANA'S hoje? Chego lá pelas 22h 🍻",
+        venueId: 'bakhanas',
         likedBy: [pedro.id],
         createdAt: ago(const Duration(minutes: 15)),
       ),
@@ -180,8 +285,8 @@ class MockDatabase {
         id: 'seed-pedro',
         authorId: pedro.id,
         authorName: pedro.name,
-        text: 'O show na Área de Eventos já começou e tá lotado. Bora!',
-        venueId: 'area-eventos',
+        text: 'Fim de tarde na Área Verde, quem chega? Trouxe o violão.',
+        venueId: 'area-verde',
         atVenue: true,
         likedBy: [ana.id, demo.id],
         createdAt: ago(const Duration(minutes: 50)),

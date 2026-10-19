@@ -109,4 +109,105 @@ void main() {
 
     expect(events.where((e) => e.transition == GeofenceTransition.dwell).map((e) => e.fenceId), ['a', 'b']);
   });
+
+  group('bares vizinhos', () {
+    // Espetinho do Denis e DJ PUB, a 44 m um do outro.
+    const espetinho = LatLng(-19.529800, -40.661999);
+    const djPub = LatLng(-19.530143, -40.661782);
+    const config = GeofenceConfig();
+
+    LocationFix at(LatLng position, Duration elapsed) =>
+        LocationFix(position: position, accuracyMeters: 10, timestamp: start.add(elapsed));
+
+    CheckInSwitcher switcher() =>
+        CheckInSwitcher(marginMeters: config.exitHysteresisMeters, holdTime: config.dwellTime);
+
+    test('ir de um ao outro não sai da primeira cerca nem gera nova permanência', () {
+      final geofences = GeofenceEngine(
+        fences: const [
+          Geofence(id: 'espetinho', center: espetinho, radiusMeters: 50),
+          Geofence(id: 'dj-pub', center: djPub, radiusMeters: 50),
+        ],
+        config: config,
+      );
+      // Parado no Espetinho, a pessoa já está dentro da cerca do DJ PUB
+      // (44 m < 50 m): as duas entram em permanência.
+      geofences.process(at(espetinho, Duration.zero));
+      geofences.tick(start.add(const Duration(minutes: 3)));
+      expect(geofences.statusOf('espetinho'), FenceStatus.dwelling);
+      expect(geofences.statusOf('dj-pub'), FenceStatus.dwelling);
+
+      // Andando até o DJ PUB: nenhuma transição, só o check-in a trocar.
+      final events = [
+        ...geofences.process(at(djPub, const Duration(minutes: 10))),
+        ...geofences.tick(start.add(const Duration(minutes: 15))),
+      ];
+      expect(events, isEmpty);
+      expect(geofences.statusOf('espetinho'), FenceStatus.dwelling);
+
+      final switching = switcher();
+      double distance(String id) => geofences.lastDistanceTo(id)!;
+      expect(
+        switching.update(
+          currentDistance: distance('espetinho'),
+          others: {'dj-pub': distance('dj-pub')},
+          now: start.add(const Duration(minutes: 10)),
+        ),
+        isNull,
+      );
+      expect(
+        switching.update(
+          currentDistance: distance('espetinho'),
+          others: {'dj-pub': distance('dj-pub')},
+          now: start.add(const Duration(minutes: 12)),
+        ),
+        'dj-pub',
+      );
+    });
+
+    test('só troca depois de ficar mais perto do outro pelo tempo de permanência', () {
+      final switching = switcher();
+      String? update(double current, double other, int seconds) => switching.update(
+        currentDistance: current,
+        others: {'dj-pub': other},
+        now: start.add(Duration(seconds: seconds)),
+      );
+
+      expect(update(54, 0, 0), isNull);
+      expect(update(54, 2, 60), isNull);
+      // Voltou para o meio do caminho: a contagem recomeça.
+      expect(update(30, 24, 90), isNull);
+      expect(update(54, 0, 100), isNull);
+      expect(update(54, 0, 200), isNull);
+      expect(update(54, 0, 220), 'dj-pub');
+    });
+
+    test('a diferença tem que passar da margem (GPS oscilando no meio)', () {
+      final switching = switcher();
+      for (var seconds = 0; seconds <= 600; seconds += 30) {
+        expect(
+          switching.update(
+            currentDistance: 30,
+            others: {'dj-pub': 10},
+            now: start.add(Duration(seconds: seconds)),
+          ),
+          isNull,
+        );
+      }
+    });
+
+    test('com vários vizinhos, vai para o mais próximo', () {
+      final switching = switcher();
+      final others = {'dj-pub': 20.0, 'bunker': 5.0};
+      expect(switching.update(currentDistance: 80, others: others, now: start), isNull);
+      expect(
+        switching.update(
+          currentDistance: 80,
+          others: others,
+          now: start.add(const Duration(minutes: 2)),
+        ),
+        'bunker',
+      );
+    });
+  });
 }

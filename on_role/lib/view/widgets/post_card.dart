@@ -9,6 +9,7 @@ import '../../providers/posts_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_widgets.dart';
 import 'media_view.dart';
+import 'user_avatar.dart';
 
 const _likeColor = Color(0xFFEC4899);
 
@@ -34,7 +35,11 @@ class PostCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            InitialAvatar(name: post.authorName, radius: 18),
+            AuthorAvatar(
+              userId: post.authorId,
+              name: post.authorName,
+              radius: 18,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(

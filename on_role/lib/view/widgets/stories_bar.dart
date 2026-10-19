@@ -5,9 +5,9 @@ import '../../models/story.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/stories_provider.dart';
 import '../../theme/app_theme.dart';
-import '../../theme/app_widgets.dart';
 import '../camera_screen.dart';
 import '../story_viewer.dart';
+import 'user_avatar.dart';
 
 /// Fileira de stories no topo do feed, como no Instagram.
 class StoriesBar extends StatelessWidget {
@@ -43,6 +43,7 @@ class StoriesBar extends StatelessWidget {
         children: [
           _StoryBubble(
             label: 'Seu story',
+            userId: me?.id ?? '',
             name: me?.name ?? '?',
             ring: mineIndex == -1
                 ? _Ring.none
@@ -58,6 +59,7 @@ class StoriesBar extends StatelessWidget {
             if (i != mineIndex)
               _StoryBubble(
                 label: groups[i].authorName,
+                userId: groups[i].authorId,
                 name: groups[i].authorName,
                 ring: stories.hasUnseen(groups[i]) ? _Ring.unseen : _Ring.seen,
                 onTap: () => _openViewer(context, groups, i),
@@ -73,6 +75,7 @@ enum _Ring { none, unseen, seen }
 class _StoryBubble extends StatelessWidget {
   const _StoryBubble({
     required this.label,
+    required this.userId,
     required this.name,
     required this.ring,
     required this.onTap,
@@ -80,6 +83,7 @@ class _StoryBubble extends StatelessWidget {
   });
 
   final String label;
+  final String userId;
   final String name;
   final _Ring ring;
   final VoidCallback onTap;
@@ -117,7 +121,7 @@ class _StoryBubble extends StatelessWidget {
                       shape: BoxShape.circle,
                       color: AppColors.background,
                     ),
-                    child: InitialAvatar(name: name, radius: 27),
+                    child: AuthorAvatar(userId: userId, name: name, radius: 27),
                   ),
                 ),
                 if (onAdd != null)

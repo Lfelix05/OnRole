@@ -190,3 +190,52 @@ class GeofenceEngine {
     );
   }
 }
+
+/// Com cercas sobrepostas (ex.: dois bares a 50 m um do outro), a pessoa pode
+/// ir de um local ao outro sem sair da primeira cerca, e a cerca do vizinho já
+/// pode estar em permanência desde antes. O check-in troca quando outro local
+/// em permanência fica mais perto que o atual, por [marginMeters], durante
+/// [holdTime] seguidos. Parar no meio do caminho, ou o GPS oscilando entre os
+/// dois, não troca.
+class CheckInSwitcher {
+  CheckInSwitcher({required this.marginMeters, required this.holdTime});
+
+  final double marginMeters;
+  final Duration holdTime;
+  String? _candidate;
+  DateTime? _candidateSince;
+
+  /// [others]: distância atual de cada outro local em permanência. Devolve o
+  /// local para onde o check-in deve ir, ou null para ficar onde está.
+  String? update({
+    required double currentDistance,
+    required Map<String, double> others,
+    required DateTime now,
+  }) {
+    String? best;
+    var bestDistance = double.infinity;
+    for (final entry in others.entries) {
+      if (entry.value + marginMeters < currentDistance && entry.value < bestDistance) {
+        best = entry.key;
+        bestDistance = entry.value;
+      }
+    }
+    if (best == null) {
+      reset();
+      return null;
+    }
+    if (best != _candidate) {
+      _candidate = best;
+      _candidateSince = now;
+      return null;
+    }
+    if (now.difference(_candidateSince!) < holdTime) return null;
+    reset();
+    return best;
+  }
+
+  void reset() {
+    _candidate = null;
+    _candidateSince = null;
+  }
+}

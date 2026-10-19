@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:on_role/view/screen/feed_screen.dart';
 import 'package:on_role/view/screen/map_screen.dart';
+import 'package:on_role/view/screen/match_screen.dart';
 import 'package:on_role/view/screen/profile_screen.dart';
 import 'package:on_role/view/screen/search_screen.dart';
 import 'package:provider/provider.dart';
@@ -28,11 +29,12 @@ class _HomeViewState extends State<HomeView> {
   }
 
   List<Widget> get _pages => const <Widget>[
-        FeedScreen(),
-        MapScreen(),
-        SearchScreen(),
-        ProfileScreen(),
-      ];
+    FeedScreen(),
+    MapScreen(),
+    MatchScreen(),
+    SearchScreen(),
+    ProfileScreen(),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -46,22 +48,15 @@ class _HomeViewState extends State<HomeView> {
           });
         },
         items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Início'),
+          BottomNavigationBarItem(icon: Icon(Icons.gps_fixed), label: 'Mapa'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Início',
+            icon: Icon(Icons.favorite_border),
+            activeIcon: Icon(Icons.favorite),
+            label: 'Conexões',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.gps_fixed),
-            label: 'Mapa',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search),
-            label: 'Procurar',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Perfil',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Procurar'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
         ],
       ),
     );

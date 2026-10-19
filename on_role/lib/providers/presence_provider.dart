@@ -10,10 +10,16 @@ import '../models/venue.dart';
 import '../services/geo.dart';
 import '../services/geofence_engine.dart';
 import '../services/location_service.dart';
+import 'experiment_provider.dart';
 
 /// Localização do usuário e check-in automático por geocerca.
 class PresenceProvider extends ChangeNotifier {
-  PresenceProvider({required PresenceRepository repository}) : _repository = repository;
+  PresenceProvider({required PresenceRepository repository, TelemetryLog? telemetry})
+      : _repository = repository,
+        _telemetry = telemetry;
+
+  /// Registro do experimento de campo (só grava para quem participa).
+  final TelemetryLog? _telemetry;
 
   /// O modo de simulação só existe em builds de depuração: na build do teste
   /// de campo (release), check-in só acontece com GPS real.
@@ -27,6 +33,7 @@ class PresenceProvider extends ChangeNotifier {
   final GpsLocationService _gps = GpsLocationService();
   final SimulatedLocationService _simulated = SimulatedLocationService();
   late GeofenceEngine _engine = _createEngine();
+  late CheckInSwitcher _switcher = _createSwitcher();
   StreamSubscription<LocationFix>? _subscription;
   Timer? _ticker;
   int _listenGeneration = 0;
@@ -106,6 +113,7 @@ class PresenceProvider extends ChangeNotifier {
     _lastFix = null;
     _events.clear();
     _engine = _createEngine();
+    _switcher = _createSwitcher();
     notifyListeners();
     await subscription?.cancel();
     // O check-out precisa chegar ao servidor antes do logout, senão a pessoa
@@ -129,6 +137,7 @@ class PresenceProvider extends ChangeNotifier {
     // cercas recomeçam do zero.
     if (_activeCheckIn != null) _checkOut(DateTime.now());
     _engine = _createEngine();
+    _switcher = _createSwitcher();
     _lastFix = null;
     notifyListeners();
     if (_userId != null) await _listen();
@@ -161,9 +170,17 @@ class PresenceProvider extends ChangeNotifier {
 
   void _onFix(LocationFix fix) {
     // Posição de app de GPS falso não vale check-in fora da depuração.
-    if (fix.isMocked && !kDebugMode) return;
+    final rejectedMock = fix.isMocked && !kDebugMode;
+    if (!_simulating) {
+      _telemetry?.recordFix(
+        accuracyMeters: fix.accuracyMeters,
+        accepted: !rejectedMock && fix.accuracyMeters <= _engine.config.maxAccuracyMeters,
+      );
+    }
+    if (rejectedMock) return;
     _lastFix = fix;
     _apply(_engine.process(fix));
+    _followCloserVenue(fix.timestamp);
     notifyListeners();
   }
 
@@ -177,8 +194,8 @@ class PresenceProvider extends ChangeNotifier {
     }
 
     final events = _engine.tick(now);
-    if (events.isNotEmpty) {
-      _apply(events);
+    _apply(events);
+    if (_followCloserVenue(now) || events.isNotEmpty) {
       notifyListeners();
     } else if (pendingCheckIn != null) {
       // Só para atualizar o progresso da confirmação na tela.
@@ -189,6 +206,14 @@ class PresenceProvider extends ChangeNotifier {
   void _apply(List<GeofenceEvent> events) {
     if (events.isEmpty) return;
     _events.addAll(events);
+    for (final event in events) {
+      _telemetry?.log('geofence', {
+        'transition': event.transition.name,
+        'venueId': event.fenceId,
+        'distance': event.distanceMeters.isFinite ? event.distanceMeters.round() : null,
+        'simulated': _simulating,
+      });
+    }
 
     for (final event in events) {
       if (event.transition == GeofenceTransition.exit && event.fenceId == _activeCheckIn?.venueId) {
@@ -222,6 +247,26 @@ class PresenceProvider extends ChangeNotifier {
     }
   }
 
+  /// Troca o check-in para um local vizinho quando a pessoa passa a ficar
+  /// mais perto dele (ver [CheckInSwitcher]). Devolve se trocou.
+  bool _followCloserVenue(DateTime now) {
+    final active = _activeCheckIn;
+    if (active == null) return false;
+    final target = _switcher.update(
+      currentDistance: _engine.lastDistanceTo(active.venueId) ?? double.infinity,
+      others: {
+        for (final venue in venueCatalog)
+          if (venue.id != active.venueId && _engine.statusOf(venue.id) == FenceStatus.dwelling)
+            venue.id: _engine.lastDistanceTo(venue.id) ?? double.infinity,
+      },
+      now: now,
+    );
+    if (target == null) return false;
+    _checkOut(now);
+    _checkIn(target, now);
+    return true;
+  }
+
   String? _nearestDwellingVenueId() {
     String? nearest;
     var nearestDistance = double.infinity;
@@ -246,9 +291,11 @@ class PresenceProvider extends ChangeNotifier {
       checkedInAt: at,
     );
     // A tela reage na hora; a gravação no servidor segue em segundo plano.
+    _switcher.reset();
     _activeCheckIn = checkIn;
     _lastKeepAlive = at;
     _repository.checkIn(checkIn).catchError(_logWriteError);
+    _telemetry?.log('check_in', {'venueId': venueId, 'simulated': _simulating});
   }
 
   void _checkOut(DateTime at) {
@@ -256,10 +303,20 @@ class PresenceProvider extends ChangeNotifier {
     if (checkIn == null) return;
     checkIn.checkedOutAt = at;
     _activeCheckIn = null;
+    _telemetry?.log('check_out', {
+      'venueId': checkIn.venueId,
+      'minutes': at.difference(checkIn.checkedInAt).inMinutes,
+      'simulated': _simulating,
+    });
     _pendingCheckOut = _repository.checkOut(checkIn).catchError(_logWriteError);
   }
 
   void _logWriteError(Object error) => debugPrint('PresenceProvider: $error');
+
+  CheckInSwitcher _createSwitcher() => CheckInSwitcher(
+        marginMeters: _engine.config.exitHysteresisMeters,
+        holdTime: _engine.config.dwellTime,
+      );
 
   GeofenceEngine _createEngine() {
     return GeofenceEngine(

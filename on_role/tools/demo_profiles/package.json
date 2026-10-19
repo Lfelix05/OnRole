@@ -1,0 +1,15 @@
+{
+  "name": "onrole-demo-profiles",
+  "private": true,
+  "type": "module",
+  "description": "Cria e remove os perfis de demonstração do OnRolê no Firebase.",
+  "scripts": {
+    "seed": "node seed.js",
+    "remove": "node remove.js"
+  },
+  "dependencies": {
+    "firebase": "^12.19.0",
+    "firebase-admin": "^14.5.0",
+    "sharp": "^0.35.5"
+  }
+}

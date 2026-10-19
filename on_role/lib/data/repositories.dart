@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import '../models/check_in.dart';
+import '../models/match.dart';
 import '../models/media.dart';
 import '../models/posts.dart';
 import '../models/reply.dart';
@@ -45,8 +46,8 @@ abstract class AuthRepository {
   /// Lança [AuthException] se não der certo.
   Future<void> signIn({required String email, required String password});
 
-  /// Lança [AuthException] se não der certo.
-  Future<void> register({
+  /// Devolve o id da conta nova. Lança [AuthException] se não der certo.
+  Future<String> register({
     required String name,
     required String email,
     required String password,
@@ -57,8 +58,40 @@ abstract class AuthRepository {
 }
 
 abstract class UserRepository {
-  /// Perfis públicos (stories, busca e, depois, o match geossocial).
+  /// Perfis públicos (stories, busca e match geossocial).
   Stream<List<User>> watchUsers();
+
+  /// [photo] nulo mantém a foto atual.
+  Future<void> updateProfile(
+    String userId, {
+    required String? bio,
+    required List<String> interests,
+    MediaRef? photo,
+  });
+}
+
+abstract class MatchRepository {
+  /// Ids de quem a pessoa já avaliou (curtiu ou passou).
+  Stream<Set<String>> watchSwipedIds(String userId);
+
+  /// Registra a decisão e devolve o match se a outra pessoa também curtiu.
+  Future<UserMatch?> swipe(Swipe swipe);
+
+  Stream<List<UserMatch>> watchMatches(String userId);
+}
+
+/// Dados do experimento de campo (seção 5C do projeto), só de quem aceitou
+/// participar. Nada aqui guarda coordenadas.
+abstract class ExperimentRepository {
+  Future<bool> isEnrolled(String userId);
+
+  Future<void> setEnrolled(String userId, bool enrolled);
+
+  /// Envia um lote de eventos (cada um com 't' em ms e 'type').
+  Future<void> upload(String userId, List<Map<String, Object?>> events);
+
+  /// Apaga tudo o que a pessoa enviou (direito de sair do experimento).
+  Future<void> deleteAll(String userId);
 }
 
 abstract class PresenceRepository {
@@ -164,6 +197,8 @@ class Repositories {
     required this.posts,
     required this.stories,
     required this.media,
+    required this.matches,
+    required this.experiment,
   });
 
   final AuthRepository auth;
@@ -172,4 +207,6 @@ class Repositories {
   final PostRepository posts;
   final StoryRepository stories;
   final MediaRepository media;
+  final MatchRepository matches;
+  final ExperimentRepository experiment;
 }

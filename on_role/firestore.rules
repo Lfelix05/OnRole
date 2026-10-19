@@ -29,21 +29,41 @@ service cloud.firestore {
         && get(path).data.lastSeenAt > request.time - duration.value(20, 'm');
     }
 
-    // Perfil público: nome, bio, foto e visitas por local (base do match).
+    // Bio curta, até 8 gostos de rolê e foto enviada pela própria pessoa.
+    function validProfile(data) {
+      return validName(data.name)
+        && (data.get('bio', null) == null || (data.bio is string && data.bio.size() <= 200))
+        && data.get('interests', []) is list
+        && data.get('interests', []).size() <= 8;
+    }
+
+    function validPhoto(photo) {
+      return photo == null
+        || (photo is map
+          && photo.id is string
+          && get(/databases/$(database)/documents/media/$(photo.id)).data.ownerId == request.auth.uid);
+    }
+
+    // Perfil público: nome, bio, foto, gostos e visitas por local (base do
+    // match).
     match /users/{uid} {
       allow read: if signedIn();
       allow create: if isSelf(uid)
         && request.resource.data.keys().hasAll(['name', 'visits', 'createdAt'])
-        && request.resource.data.keys().hasOnly(['name', 'bio', 'avatarUrl', 'visits', 'createdAt'])
-        && validName(request.resource.data.name)
+        && request.resource.data.keys().hasOnly(['name', 'bio', 'avatarUrl', 'photo', 'interests', 'visits', 'createdAt'])
+        && validProfile(request.resource.data)
+        && validPhoto(request.resource.data.get('photo', null))
         && request.resource.data.visits is map
         && request.resource.data.createdAt == request.time;
       allow update: if isSelf(uid)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'bio', 'avatarUrl', 'visits'])
-        && validName(request.resource.data.name);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'bio', 'avatarUrl', 'photo', 'interests', 'visits'])
+        && validProfile(request.resource.data)
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['photo'])
+          || validPhoto(request.resource.data.photo));
       allow delete: if false;
 
-      // Dados que só o dono vê (e-mail, data de nascimento).
+      // Dados que só o dono vê (e-mail, data de nascimento, consentimento do
+      // experimento).
       match /private/{docId} {
         allow read, write: if isSelf(uid);
       }
@@ -189,6 +209,69 @@ service cloud.firestore {
           && request.resource.data.data.size() <= 950000;
         allow delete: if signedIn() && mediaDoc().ownerId == request.auth.uid;
       }
+    }
+
+    // Conexões (match geossocial). swipes/{de}_{para} guarda cada decisão;
+    // a fonte (afinidade ou controle) e a nota permitem comparar as duas
+    // formas de sugestão no TCC (H3).
+    match /swipes/{swipeId} {
+      // As próprias decisões e, uma a uma, as curtidas recebidas: quem passou
+      // e quem ainda não decidiu ficam iguais (acesso negado).
+      allow get: if signedIn()
+        && (resource.data.from == request.auth.uid
+          || (resource.data.to == request.auth.uid && resource.data.decision == 'like'));
+      allow list: if signedIn() && resource.data.from == request.auth.uid;
+      allow create, update: if signedIn()
+        && request.resource.data.keys().hasAll(['from', 'to', 'decision', 'source', 'score', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['from', 'to', 'decision', 'source', 'score', 'createdAt'])
+        && request.resource.data.from == request.auth.uid
+        && request.resource.data.to is string
+        && request.resource.data.to != request.auth.uid
+        && swipeId == request.auth.uid + '_' + request.resource.data.to
+        && request.resource.data.decision in ['like', 'pass']
+        && request.resource.data.source in ['afinidade', 'controle']
+        && request.resource.data.score is number
+        && request.resource.data.score >= 0
+        && request.resource.data.score <= 1
+        && request.resource.data.createdAt == request.time;
+      allow delete: if false;
+    }
+
+    function likes(from, to) {
+      let path = /databases/$(database)/documents/swipes/$(from + '_' + to);
+      return existsAfter(path) && getAfter(path).data.decision == 'like';
+    }
+
+    // Match: só nasce com as duas curtidas gravadas (mesmo lote ou antes) e
+    // nunca é alterado. O id é a dupla em ordem, então existe um por par.
+    match /matches/{matchId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.users;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['users', 'createdAt'])
+        && request.resource.data.users is list
+        && request.resource.data.users.size() == 2
+        && request.auth.uid in request.resource.data.users
+        && request.resource.data.users[0] < request.resource.data.users[1]
+        && matchId == request.resource.data.users[0] + '_' + request.resource.data.users[1]
+        && likes(request.resource.data.users[0], request.resource.data.users[1])
+        && likes(request.resource.data.users[1], request.resource.data.users[0])
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // Experimento de campo: lotes de eventos pseudônimos, sem coordenadas.
+    // Só o participante envia, lê e apaga; a exportação usa o Admin SDK.
+    match /telemetry/{uid}/batches/{batchId} {
+      allow read, delete: if isSelf(uid);
+      allow create: if isSelf(uid)
+        && request.resource.data.keys().hasAll(['events', 'count', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['events', 'count', 'createdAt'])
+        && request.resource.data.events is list
+        && request.resource.data.events.size() > 0
+        && request.resource.data.events.size() <= 500
+        && request.resource.data.count == request.resource.data.events.size()
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
     }
   }
 }

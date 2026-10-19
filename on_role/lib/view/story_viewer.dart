@@ -16,6 +16,7 @@ import '../theme/app_theme.dart';
 import '../theme/app_widgets.dart';
 import 'widgets/media_view.dart';
 import 'widgets/post_card.dart';
+import 'widgets/user_avatar.dart';
 
 /// Quanto tempo uma foto fica na tela.
 const _photoDuration = Duration(seconds: 5);
@@ -228,7 +229,11 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                     ),
                     Row(
                       children: [
-                        InitialAvatar(name: story.authorName, radius: 16),
+                        AuthorAvatar(
+                          userId: story.authorId,
+                          name: story.authorName,
+                          radius: 16,
+                        ),
                         const SizedBox(width: 8),
                         Flexible(
                           child: Text(

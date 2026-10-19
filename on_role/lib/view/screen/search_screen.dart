@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../data/venue_catalog.dart';
 import '../../models/posts.dart';
 import '../../models/user.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/posts_provider.dart';
+import '../../services/text_search.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_widgets.dart';
 import '../post_detail_screen.dart';
+import '../user_profile_screen.dart';
 import '../widgets/media_view.dart';
+import '../widgets/user_avatar.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -18,49 +22,72 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> {
+  final _query = TextEditingController();
   bool _peopleOnly = false;
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
+
+  static String _handleOf(User user) =>
+      '@${user.name.toLowerCase().replaceAll(' ', '')}';
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final postsProvider = context.watch<PostsProvider>();
+    final query = _query.text.trim();
+
     final people = [
-      if (auth.currentUser != null) auth.currentUser!,
-      ...auth.otherUsers,
+      for (final user in auth.otherUsers)
+        if (matchesSearch(query, [
+          user.name,
+          _handleOf(user),
+          user.bio,
+          ...user.interests,
+        ]))
+          user,
     ];
+    // Só posts com foto ou vídeo: a busca é uma vitrine visual, e os posts de
+    // texto ficam no feed.
+    final posts = _peopleOnly
+        ? const <Posts>[]
+        : [
+            for (final post in postsProvider.posts)
+              if (post.media.isNotEmpty &&
+                  matchesSearch(query, [
+                    post.text,
+                    post.authorName,
+                    findVenue(post.venueId)?.name,
+                  ]))
+                post,
+          ];
 
     // Contagem sobre os posts já carregados no feed.
     int postCountOf(String userId) =>
         postsProvider.posts.where((post) => post.authorId == userId).length;
+    Widget personCard(User user) =>
+        _PersonCard(user: user, postCount: postCountOf(user.id));
 
     final items = <Widget>[];
-    if (_peopleOnly) {
-      for (final user in people) {
-        items.add(_PersonCard(user: user, postCount: postCountOf(user.id)));
-      }
+    if (query.isNotEmpty || _peopleOnly) {
+      // Buscando: primeiro as pessoas, depois os posts.
+      items
+        ..addAll(people.map(personCard))
+        ..addAll(posts.map((post) => _PostCard(post: post)));
     } else {
-      final posts = postsProvider.posts;
+      // Sem busca: posts e pessoas intercalados, como uma vitrine.
       var personIndex = 0;
       for (var i = 0; i < posts.length; i++) {
-        items.add(_PostCard(post: posts[i], authorName: posts[i].authorName));
+        items.add(_PostCard(post: posts[i]));
         if (personIndex < people.length && i.isOdd) {
-          items.add(
-            _PersonCard(
-              user: people[personIndex],
-              postCount: postCountOf(people[personIndex].id),
-            ),
-          );
-          personIndex++;
+          items.add(personCard(people[personIndex++]));
         }
       }
       while (personIndex < people.length) {
-        items.add(
-          _PersonCard(
-            user: people[personIndex],
-            postCount: postCountOf(people[personIndex].id),
-          ),
-        );
-        personIndex++;
+        items.add(personCard(people[personIndex++]));
       }
     }
 
@@ -84,32 +111,46 @@ class _SearchScreenState extends State<SearchScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 4,
-                  ),
+                  padding: const EdgeInsets.only(left: 14, right: 4),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.search,
                         color: AppColors.textSecondary,
                         size: 20,
                       ),
-                      SizedBox(width: 10),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: TextField(
-                          style: TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            hintText: 'Pessoas, postagens, lugares...',
+                          controller: _query,
+                          onChanged: (_) => setState(() {}),
+                          textInputAction: TextInputAction.search,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: const InputDecoration(
+                            hintText: 'Pessoas, gostos, posts ou locais',
                             border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            filled: false,
                             isDense: true,
+                            contentPadding: EdgeInsets.symmetric(vertical: 14),
                           ),
                         ),
                       ),
+                      if (_query.text.isNotEmpty)
+                        IconButton(
+                          tooltip: 'Limpar busca',
+                          icon: const Icon(
+                            Icons.close,
+                            color: AppColors.textSecondary,
+                            size: 18,
+                          ),
+                          onPressed: () => setState(_query.clear),
+                        ),
                     ],
                   ),
                 ),
@@ -137,13 +178,23 @@ class _SearchScreenState extends State<SearchScreen> {
               Expanded(
                 child: items.isEmpty
                     ? Center(
-                        child: Text(
-                          'Nada por aqui ainda.',
-                          style: TextStyle(color: AppColors.textSecondary),
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Text(
+                            query.isEmpty
+                                ? 'Nada por aqui ainda.'
+                                : 'Nada encontrado para "$query".',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
                         ),
                       )
                     : GridView.builder(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
                         itemCount: items.length,
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
@@ -199,10 +250,9 @@ class _FilterChip extends StatelessWidget {
 }
 
 class _PostCard extends StatelessWidget {
-  const _PostCard({required this.post, required this.authorName});
+  const _PostCard({required this.post});
 
   final Posts post;
-  final String authorName;
 
   @override
   Widget build(BuildContext context) {
@@ -218,17 +268,16 @@ class _PostCard extends StatelessWidget {
           children: [
             if (image != null)
               MediaImage(media: image)
-            else if (post.media.isNotEmpty)
-              const MediaPlaceholder(borderRadius: 0)
             else
-              Container(
-                color: AppColors.surfaceHigh,
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  post.text,
-                  maxLines: 6,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
+              const MediaPlaceholder(borderRadius: 0),
+            if (post.media.first.isVideo || post.media.length > 1)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Icon(
+                  post.media.first.isVideo ? Icons.videocam : Icons.collections,
+                  color: Colors.white,
+                  size: 18,
                 ),
               ),
             Positioned(
@@ -252,7 +301,7 @@ class _PostCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      authorName,
+                      post.authorName,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -288,34 +337,83 @@ class _PersonCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final handle = '@${user.name.toLowerCase().replaceAll(' ', '')}';
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
+    return Material(
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: AppColors.border),
       ),
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          InitialAvatar(name: user.name, radius: 26),
-          const SizedBox(height: 10.0),
-          Text(
-            user.name,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-            ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => UserProfileScreen.open(context, user),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              UserAvatar(user: user, radius: 34),
+              const SizedBox(height: 10),
+              Text(
+                user.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                handle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                postCount == 1 ? '1 post' : '$postCount posts',
+                style: const TextStyle(
+                  color: AppColors.textTertiary,
+                  fontSize: 11,
+                ),
+              ),
+              if (user.interests.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: [
+                    for (final interest in user.interests.take(2))
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          interest,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.primarySoft,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ],
           ),
-          const SizedBox(height: 2.0),
-          Text(
-            '$handle · $postCount',
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 11,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

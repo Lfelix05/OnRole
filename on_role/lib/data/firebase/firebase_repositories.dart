@@ -4,8 +4,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 
 import '../../models/check_in.dart';
+import '../../models/media.dart';
 import '../../models/user.dart';
 import '../repositories.dart';
+import 'firebase_match_repositories.dart';
 import 'firebase_social_repositories.dart';
 
 // Estrutura do Firestore (as regras de acesso estão em firestore.rules):
@@ -30,18 +32,28 @@ Repositories createFirebaseRepositories() {
     posts: FirebasePostRepository(db),
     stories: FirebaseStoryRepository(db),
     media: FirebaseMediaRepository(db),
+    matches: FirebaseMatchRepository(db),
+    experiment: FirebaseExperimentRepository(db),
   );
 }
 
 User _userFromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
   final data = doc.data() ?? const {};
   final visits = data['visits'] as Map<String, dynamic>? ?? const {};
+  final photo = data['photo'] as Map?;
   return User(
     id: doc.id,
     name: data['name'] as String? ?? 'Usuário',
     bio: data['bio'] as String?,
     avatarUrl: data['avatarUrl'] as String?,
-    visits: {for (final entry in visits.entries) entry.key: (entry.value as num).toInt()},
+    photo: photo == null
+        ? null
+        : MediaRef.fromJson(Map<String, dynamic>.from(photo)),
+    interests: List<String>.from(data['interests'] as List? ?? const []),
+    visits: {
+      for (final entry in visits.entries)
+        entry.key: (entry.value as num).toInt(),
+    },
   );
 }
 
@@ -54,7 +66,8 @@ class FirebaseAuthRepository implements AuthRepository {
   @override
   Stream<User?> watchCurrentUser() {
     StreamSubscription<fb.User?>? sessionSubscription;
-    StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? profileSubscription;
+    StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+    profileSubscription;
     late final StreamController<User?> controller;
 
     controller = StreamController<User?>(
@@ -68,13 +81,16 @@ class FirebaseAuthRepository implements AuthRepository {
           }
           // Até o perfil chegar (ou logo depois do cadastro, antes de ele ser
           // gravado), o nome vem da própria conta.
-          controller.add(User(id: account.uid, name: account.displayName ?? 'Usuário'));
-          profileSubscription = _db.collection('users').doc(account.uid).snapshots().listen(
-            (doc) {
-              if (doc.exists) controller.add(_userFromDoc(doc));
-            },
-            onError: controller.addError,
+          controller.add(
+            User(id: account.uid, name: account.displayName ?? 'Usuário'),
           );
+          profileSubscription = _db
+              .collection('users')
+              .doc(account.uid)
+              .snapshots()
+              .listen((doc) {
+                if (doc.exists) controller.add(_userFromDoc(doc));
+              }, onError: controller.addError);
         }, onError: controller.addError);
       },
       onCancel: () async {
@@ -88,21 +104,27 @@ class FirebaseAuthRepository implements AuthRepository {
   @override
   Future<void> signIn({required String email, required String password}) async {
     try {
-      await _auth.signInWithEmailAndPassword(email: email.trim(), password: password);
+      await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
     } on FirebaseException catch (error) {
       throw AuthException(_describe(error));
     }
   }
 
   @override
-  Future<void> register({
+  Future<String> register({
     required String name,
     required String email,
     required String password,
     required DateTime birthDate,
   }) async {
     try {
-      final credential = await _auth.createUserWithEmailAndPassword(email: email.trim(), password: password);
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
       final account = credential.user!;
       await account.updateDisplayName(name.trim());
 
@@ -120,6 +142,7 @@ class FirebaseAuthRepository implements AuthRepository {
           'birthDate': Timestamp.fromDate(birthDate),
         });
       await batch.commit();
+      return account.uid;
     } on FirebaseException catch (error) {
       throw AuthException(_describe(error));
     }
@@ -175,7 +198,23 @@ class FirebaseUserRepository implements UserRepository {
         .orderBy('createdAt', descending: true)
         .limit(100)
         .snapshots()
-        .map((snapshot) => [for (final doc in snapshot.docs) _userFromDoc(doc)]);
+        .map(
+          (snapshot) => [for (final doc in snapshot.docs) _userFromDoc(doc)],
+        );
+  }
+
+  @override
+  Future<void> updateProfile(
+    String userId, {
+    required String? bio,
+    required List<String> interests,
+    MediaRef? photo,
+  }) {
+    return _db.collection('users').doc(userId).update({
+      'bio': bio,
+      'interests': interests,
+      if (photo != null) 'photo': photo.toJson(),
+    });
   }
 }
 
@@ -184,10 +223,15 @@ class FirebasePresenceRepository implements PresenceRepository {
 
   final FirebaseFirestore _db;
 
-  DocumentReference<Map<String, dynamic>> _presenceOf(String userId) => _db.collection('presence').doc(userId);
+  DocumentReference<Map<String, dynamic>> _presenceOf(String userId) =>
+      _db.collection('presence').doc(userId);
 
   DocumentReference<Map<String, dynamic>> _historyOf(CheckIn checkIn) {
-    return _db.collection('users').doc(checkIn.userId).collection('checkins').doc(checkIn.id);
+    return _db
+        .collection('users')
+        .doc(checkIn.userId)
+        .collection('checkins')
+        .doc(checkIn.id);
   }
 
   @override
@@ -216,7 +260,9 @@ class FirebasePresenceRepository implements PresenceRepository {
   Future<void> checkOut(CheckIn checkIn) {
     final batch = _db.batch()
       ..update(_historyOf(checkIn), {
-        'checkedOutAt': Timestamp.fromDate(checkIn.checkedOutAt ?? DateTime.now()),
+        'checkedOutAt': Timestamp.fromDate(
+          checkIn.checkedOutAt ?? DateTime.now(),
+        ),
       })
       ..delete(_presenceOf(checkIn.userId));
     return batch.commit();
@@ -224,7 +270,9 @@ class FirebasePresenceRepository implements PresenceRepository {
 
   @override
   Future<void> keepAlive(CheckIn checkIn) {
-    return _presenceOf(checkIn.userId).update({'lastSeenAt': FieldValue.serverTimestamp()});
+    return _presenceOf(
+      checkIn.userId,
+    ).update({'lastSeenAt': FieldValue.serverTimestamp()});
   }
 
   @override
@@ -256,13 +304,12 @@ class FirebasePresenceRepository implements PresenceRepository {
 
     controller = StreamController(
       onListen: () {
-        subscription = _db.collection('presence').snapshots().listen(
-          (snapshot) {
-            latest = snapshot;
-            emitCounts();
-          },
-          onError: controller.addError,
-        );
+        subscription = _db.collection('presence').snapshots().listen((
+          snapshot,
+        ) {
+          latest = snapshot;
+          emitCounts();
+        }, onError: controller.addError);
         // A janela de validade anda com o relógio, mesmo sem mudança no banco.
         timer = Timer.periodic(const Duration(minutes: 1), (_) => emitCounts());
       },

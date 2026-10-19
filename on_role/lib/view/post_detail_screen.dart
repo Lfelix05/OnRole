@@ -7,6 +7,7 @@ import '../providers/posts_provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_widgets.dart';
 import 'widgets/post_card.dart';
+import 'widgets/user_avatar.dart';
 
 /// Um post com a conversa (respostas) embaixo.
 class PostDetailScreen extends StatefulWidget {
@@ -145,7 +146,11 @@ class _ReplyTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          InitialAvatar(name: reply.authorName, radius: 14),
+          AuthorAvatar(
+            userId: reply.authorId,
+            name: reply.authorName,
+            radius: 14,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(

@@ -1,0 +1,8 @@
+node_modules/
+# Saída da exportação e cache com os ids do Firebase: ficam só nesta máquina.
+out/
+# Chaves de conta de serviço: nunca no repositório (ele é público).
+*.key.json
+service-account*.json
+*-firebase-adminsdk-*.json
+credentials*.json
