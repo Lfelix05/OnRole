@@ -1,0 +1,556 @@
+// Testes das regras de segurança do Firestore (../firestore.rules). Rodam no
+// emulador local, num projeto "demo-" que nunca toca o banco de verdade:
+//
+//   cd on_role
+//   firebase emulators:exec --only firestore --project demo-onrole "npm --prefix firestore_tests test"
+import { readFileSync } from 'node:fs';
+import { after, before, beforeEach, describe, test } from 'node:test';
+
+import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
+import {
+  addDoc,
+  arrayRemove,
+  arrayUnion,
+  Bytes,
+  collection,
+  deleteDoc,
+  doc,
+  FieldPath,
+  getDoc,
+  getDocs,
+  increment,
+  query,
+  serverTimestamp,
+  setDoc,
+  Timestamp,
+  updateDoc,
+  where,
+  writeBatch,
+} from 'firebase/firestore';
+
+let env;
+
+before(async () => {
+  env = await initializeTestEnvironment({
+    projectId: 'demo-onrole',
+    firestore: { rules: readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8') },
+  });
+});
+
+after(() => env.cleanup());
+
+beforeEach(() => env.clearFirestore());
+
+const as = (uid) => env.authenticatedContext(uid).firestore();
+const anonymous = () => env.unauthenticatedContext().firestore();
+const seed = (write) => env.withSecurityRulesDisabled((context) => write(context.firestore()));
+
+const hoursFromNow = (hours) => Timestamp.fromMillis(Date.now() + hours * 60 * 60 * 1000);
+const minutesAgo = (minutes) => Timestamp.fromMillis(Date.now() - minutes * 60 * 1000);
+
+const photo = { id: 'm1', kind: 'image', mimeType: 'image/jpeg', chunkCount: 1, aspectRatio: 1.5, durationMs: null };
+
+function newPost(overrides = {}) {
+  return {
+    authorId: 'ana',
+    authorName: 'Ana',
+    text: 'Alguém topa o Boteco hoje?',
+    media: [],
+    venueId: null,
+    atVenue: false,
+    likedBy: [],
+    replyCount: 0,
+    createdAt: serverTimestamp(),
+    ...overrides,
+  };
+}
+
+function presentAt(uid, venueId, lastSeenAt = Timestamp.now()) {
+  return seed((db) => setDoc(doc(db, 'presence', uid), { venueId, since: minutesAgo(5), lastSeenAt }));
+}
+
+function seedPost(id, overrides = {}) {
+  return seed((db) => setDoc(doc(db, 'posts', id), { ...newPost(), createdAt: Timestamp.now(), ...overrides }));
+}
+
+describe('leitura', () => {
+  test('quem não está logado não lê nada', async () => {
+    await assertFails(getDocs(collection(anonymous(), 'posts')));
+    await assertFails(getDoc(doc(anonymous(), 'users/ana')));
+    await assertFails(getDocs(collection(anonymous(), 'presence')));
+    await assertFails(getDocs(collection(anonymous(), 'stories')));
+    await assertFails(getDoc(doc(anonymous(), 'media/m1')));
+  });
+
+  test('quem está logado lê perfis, presenças, posts, stories e mídia', async () => {
+    const db = as('bia');
+    await assertSucceeds(getDoc(doc(db, 'users/ana')));
+    await assertSucceeds(getDocs(collection(db, 'presence')));
+    await assertSucceeds(getDocs(collection(db, 'posts')));
+    await assertSucceeds(getDocs(collection(db, 'posts/p1/replies')));
+    await assertSucceeds(getDocs(collection(db, 'stories')));
+    await assertSucceeds(getDocs(collection(db, 'media/m1/chunks')));
+  });
+
+  test('dados privados e histórico de check-ins só para o dono', async () => {
+    await assertSucceeds(getDoc(doc(as('ana'), 'users/ana/private/account')));
+    await assertFails(getDoc(doc(as('bia'), 'users/ana/private/account')));
+    await assertSucceeds(getDocs(collection(as('ana'), 'users/ana/checkins')));
+    await assertFails(getDocs(collection(as('bia'), 'users/ana/checkins')));
+  });
+});
+
+describe('perfil', () => {
+  const profile = { name: 'Ana', bio: null, avatarUrl: null, visits: {}, createdAt: serverTimestamp() };
+
+  test('cada um cria só o próprio perfil', async () => {
+    await assertSucceeds(setDoc(doc(as('ana'), 'users/ana'), profile));
+    await assertFails(setDoc(doc(as('bia'), 'users/ana'), profile));
+  });
+
+  test('perfil público não aceita campos extras, como o e-mail', async () => {
+    await assertFails(setDoc(doc(as('ana'), 'users/ana'), { ...profile, email: 'ana@exemplo.com' }));
+  });
+
+  test('só o dono conta as próprias visitas', async () => {
+    await seed((db) => setDoc(doc(db, 'users/ana'), { ...profile, createdAt: Timestamp.now() }));
+    const visit = [new FieldPath('visits', 'boteco-central'), increment(1)];
+    await assertSucceeds(updateDoc(doc(as('ana'), 'users/ana'), ...visit));
+    await assertFails(updateDoc(doc(as('bia'), 'users/ana'), ...visit));
+  });
+
+  describe('foto, bio e gostos de rolê', () => {
+    beforeEach(() =>
+      seed(async (db) => {
+        await setDoc(doc(db, 'users/ana'), { ...profile, createdAt: Timestamp.now() });
+        await setDoc(doc(db, 'media/foto-ana'), { ownerId: 'ana', kind: 'image', createdAt: Timestamp.now() });
+        await setDoc(doc(db, 'media/foto-bia'), { ownerId: 'bia', kind: 'image', createdAt: Timestamp.now() });
+      }),
+    );
+    const ana = () => doc(as('ana'), 'users/ana');
+
+    test('o dono edita bio, gostos e foto', async () => {
+      await assertSucceeds(
+        updateDoc(ana(), {
+          bio: 'Samba toda sexta',
+          interests: ['Bar', 'Samba e pagode'],
+          photo: { ...photo, id: 'foto-ana' },
+        }),
+      );
+      // Mudar só a bio depois não confere a foto de novo.
+      await assertSucceeds(updateDoc(ana(), { bio: 'Agora é forró' }));
+    });
+
+    test('bio acima de 200 caracteres e mais de 8 gostos são recusados', async () => {
+      await assertFails(updateDoc(ana(), { bio: 'a'.repeat(201) }));
+      await assertFails(updateDoc(ana(), { interests: Array.from({ length: 9 }, (_, i) => 'gosto ' + i) }));
+      await assertFails(updateDoc(ana(), { interests: 'Bar' }));
+    });
+
+    test('foto tem que ser uma mídia enviada pela própria pessoa', async () => {
+      await assertFails(updateDoc(ana(), { photo: { ...photo, id: 'foto-bia' } }));
+      await assertFails(updateDoc(ana(), { photo: { ...photo, id: 'nao-existe' } }));
+    });
+
+    test('ninguém edita o perfil de outra pessoa', async () => {
+      await assertFails(updateDoc(doc(as('bia'), 'users/ana'), { bio: 'invadido' }));
+    });
+  });
+});
+
+describe('presença', () => {
+  const presence = { venueId: 'boteco-central', since: Timestamp.now(), lastSeenAt: serverTimestamp() };
+
+  test('cada um marca só a própria presença', async () => {
+    await assertSucceeds(setDoc(doc(as('ana'), 'presence/ana'), presence));
+    await assertFails(setDoc(doc(as('bia'), 'presence/ana'), presence));
+  });
+
+  test('presença não aceita coordenadas', async () => {
+    await assertFails(setDoc(doc(as('ana'), 'presence/ana'), { ...presence, lat: -19.53, lng: -40.62 }));
+  });
+
+  test('lastSeenAt tem que ser a hora do servidor, não do aparelho', async () => {
+    await assertFails(setDoc(doc(as('ana'), 'presence/ana'), { ...presence, lastSeenAt: hoursFromNow(5) }));
+  });
+});
+
+describe('posts', () => {
+  const posts = (uid) => collection(as(uid), 'posts');
+
+  test('qualquer pessoa logada posta, sem check-in', async () => {
+    await assertSucceeds(addDoc(posts('ana'), newPost()));
+  });
+
+  test('marcar um local sem estar lá é permitido (combinar um rolê)', async () => {
+    await assertSucceeds(addDoc(posts('ana'), newPost({ venueId: 'boteco-central' })));
+  });
+
+  test('post só com fotos/vídeos, sem texto, é permitido', async () => {
+    await assertSucceeds(addDoc(posts('ana'), newPost({ text: '', media: [photo] })));
+  });
+
+  test('não posta vazio, nem com mais de 4 mídias ou texto acima de 500', async () => {
+    await assertFails(addDoc(posts('ana'), newPost({ text: '' })));
+    await assertFails(addDoc(posts('ana'), newPost({ media: [photo, photo, photo, photo, photo] })));
+    await assertFails(addDoc(posts('ana'), newPost({ text: 'x'.repeat(501) })));
+  });
+
+  test('não posta em nome de outra pessoa nem já com curtidas', async () => {
+    await assertFails(addDoc(posts('ana'), newPost({ authorId: 'bia' })));
+    await assertFails(addDoc(posts('ana'), newPost({ likedBy: ['ana', 'bia'] })));
+    await assertFails(addDoc(posts('ana'), newPost({ replyCount: 9 })));
+  });
+
+  describe('selo "no rolê agora" (H2)', () => {
+    const verified = { venueId: 'boteco-central', atVenue: true };
+
+    test('sem check-in, o selo é recusado', async () => {
+      await assertFails(addDoc(posts('ana'), newPost(verified)));
+    });
+
+    test('com check-in em outro local, o selo é recusado', async () => {
+      await presentAt('ana', 'praca-municipal');
+      await assertFails(addDoc(posts('ana'), newPost(verified)));
+    });
+
+    test('com check-in no local, o selo é aceito', async () => {
+      await presentAt('ana', 'boteco-central');
+      await assertSucceeds(addDoc(posts('ana'), newPost(verified)));
+    });
+
+    test('presença sem renovação há mais de 20 minutos não vale', async () => {
+      await presentAt('ana', 'boteco-central', minutesAgo(30));
+      await assertFails(addDoc(posts('ana'), newPost(verified)));
+    });
+  });
+
+  test('curtir e descurtir só com o próprio id', async () => {
+    await seedPost('p1');
+    const post = (uid) => doc(as(uid), 'posts/p1');
+
+    await assertSucceeds(updateDoc(post('bia'), { likedBy: arrayUnion('bia') }));
+    await assertFails(updateDoc(post('bia'), { likedBy: arrayUnion('caio') }));
+    await assertFails(updateDoc(post('caio'), { likedBy: arrayRemove('bia') }));
+    await assertSucceeds(updateDoc(post('bia'), { likedBy: arrayRemove('bia') }));
+  });
+
+  test('ninguém edita o texto; só o autor apaga', async () => {
+    await seedPost('p1');
+    await assertFails(updateDoc(doc(as('ana'), 'posts/p1'), { text: 'editado' }));
+    await assertFails(deleteDoc(doc(as('bia'), 'posts/p1')));
+    await assertSucceeds(deleteDoc(doc(as('ana'), 'posts/p1')));
+  });
+
+  describe('respostas', () => {
+    function replyBatch(db, { replyId = 'r1', count = increment(1), lastReplyId = replyId, author = 'bia' } = {}) {
+      const batch = writeBatch(db);
+      batch.set(doc(db, `posts/p1/replies/${replyId}`), {
+        authorId: author,
+        authorName: 'Bia',
+        text: 'Tô dentro!',
+        createdAt: serverTimestamp(),
+      });
+      batch.update(doc(db, 'posts/p1'), { replyCount: count, lastReplyId });
+      return batch.commit();
+    }
+
+    test('resposta e contador sobem juntos', async () => {
+      await seedPost('p1');
+      await assertSucceeds(replyBatch(as('bia')));
+    });
+
+    test('resposta sem subir o contador é recusada', async () => {
+      await seedPost('p1');
+      const db = as('bia');
+      await assertFails(
+        setDoc(doc(db, 'posts/p1/replies/r1'), {
+          authorId: 'bia',
+          authorName: 'Bia',
+          text: 'Oi',
+          createdAt: serverTimestamp(),
+        }),
+      );
+    });
+
+    test('não dá para inflar o contador', async () => {
+      await seedPost('p1');
+      await assertFails(updateDoc(doc(as('bia'), 'posts/p1'), { replyCount: increment(1), lastReplyId: 'nada' }));
+      await assertFails(replyBatch(as('bia'), { count: increment(5) }));
+    });
+
+    test('não responde em nome de outra pessoa', async () => {
+      await seedPost('p1');
+      await assertFails(replyBatch(as('bia'), { author: 'ana' }));
+    });
+  });
+});
+
+describe('stories', () => {
+  function newStory(overrides = {}) {
+    return {
+      authorId: 'ana',
+      authorName: 'Ana',
+      media: photo,
+      venueId: null,
+      atVenue: false,
+      createdAt: serverTimestamp(),
+      expiresAt: hoursFromNow(24),
+      ...overrides,
+    };
+  }
+
+  test('posta um story que vence em até 24 h', async () => {
+    await assertSucceeds(addDoc(collection(as('ana'), 'stories'), newStory()));
+  });
+
+  test('story não pode durar mais que um dia', async () => {
+    await assertFails(addDoc(collection(as('ana'), 'stories'), newStory({ expiresAt: hoursFromNow(72) })));
+  });
+
+  test('selo no story também exige check-in', async () => {
+    const verified = newStory({ venueId: 'boteco-central', atVenue: true });
+    await assertFails(addDoc(collection(as('ana'), 'stories'), verified));
+    await presentAt('ana', 'boteco-central');
+    await assertSucceeds(addDoc(collection(as('ana'), 'stories'), verified));
+  });
+
+  test('só o autor apaga o story', async () => {
+    await seed((db) => setDoc(doc(db, 'stories/s1'), { ...newStory(), createdAt: Timestamp.now() }));
+    await assertFails(deleteDoc(doc(as('bia'), 'stories/s1')));
+    await assertSucceeds(deleteDoc(doc(as('ana'), 'stories/s1')));
+  });
+});
+
+describe('mídia em pedaços', () => {
+  const meta = {
+    ownerId: 'ana',
+    kind: 'video',
+    mimeType: 'video/mp4',
+    size: 2_000_000,
+    chunkCount: 3,
+    createdAt: serverTimestamp(),
+  };
+  const chunk = (size) => ({ data: Bytes.fromUint8Array(new Uint8Array(size)) });
+
+  test('o dono cria os metadados e depois os pedaços', async () => {
+    const db = as('ana');
+    await assertSucceeds(setDoc(doc(db, 'media/m1'), meta));
+    await assertSucceeds(setDoc(doc(db, 'media/m1/chunks/0'), chunk(900 * 1024)));
+    await assertSucceeds(setDoc(doc(db, 'media/m1/chunks/2'), chunk(10)));
+  });
+
+  test('não aceita arquivo acima de 10 MB nem mais de 12 pedaços', async () => {
+    await assertFails(setDoc(doc(as('ana'), 'media/m1'), { ...meta, size: 11 * 1024 * 1024 }));
+    await assertFails(setDoc(doc(as('ana'), 'media/m1'), { ...meta, chunkCount: 13 }));
+  });
+
+  test('pedaço só do dono, dentro da quantidade e até 950 KB', async () => {
+    await seed((db) => setDoc(doc(db, 'media/m1'), { ...meta, createdAt: Timestamp.now() }));
+    await assertFails(setDoc(doc(as('bia'), 'media/m1/chunks/0'), chunk(10)));
+    await assertFails(setDoc(doc(as('ana'), 'media/m1/chunks/3'), chunk(10)));
+    await assertFails(setDoc(doc(as('ana'), 'media/m1/chunks/0'), chunk(960_000)));
+  });
+
+  test('pedaço sem metadados é recusado', async () => {
+    await assertFails(setDoc(doc(as('ana'), 'media/sem-meta/chunks/0'), chunk(10)));
+  });
+
+  test('pedaços não podem ser trocados depois de enviados', async () => {
+    const db = as('ana');
+    await assertSucceeds(setDoc(doc(db, 'media/m1'), meta));
+    await assertSucceeds(setDoc(doc(db, 'media/m1/chunks/0'), chunk(10)));
+    await assertFails(setDoc(doc(db, 'media/m1/chunks/0'), chunk(20)));
+  });
+
+  test('só o dono apaga', async () => {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'media/m1'), { ...meta, createdAt: Timestamp.now() });
+      await setDoc(doc(db, 'media/m1/chunks/0'), chunk(10));
+    });
+    await assertFails(deleteDoc(doc(as('bia'), 'media/m1/chunks/0')));
+    await assertSucceeds(deleteDoc(doc(as('ana'), 'media/m1/chunks/0')));
+    await assertFails(deleteDoc(doc(as('bia'), 'media/m1')));
+    await assertSucceeds(deleteDoc(doc(as('ana'), 'media/m1')));
+  });
+});
+
+describe('histórico de check-ins', () => {
+  test('o dono abre e fecha o próprio check-in', async () => {
+    const checkIn = doc(as('ana'), 'users/ana/checkins/c1');
+    await assertSucceeds(setDoc(checkIn, { venueId: 'boteco-central', checkedInAt: Timestamp.now(), checkedOutAt: null }));
+    await assertSucceeds(updateDoc(checkIn, { checkedOutAt: Timestamp.now() }));
+  });
+
+  test('não mexe no histórico de outra pessoa', async () => {
+    const checkIn = { venueId: 'boteco-central', checkedInAt: Timestamp.now(), checkedOutAt: null };
+    await assertFails(setDoc(doc(as('bia'), 'users/ana/checkins/c1'), checkIn));
+  });
+});
+
+describe('conexões (seguir)', () => {
+  const follow = (from, to, overrides = {}) => ({ from, to, createdAt: serverTimestamp(), ...overrides });
+  const seedUser = (uid) => seed((db) => setDoc(doc(db, 'users', uid), { name: uid, visits: {}, createdAt: Timestamp.now() }));
+
+  beforeEach(async () => {
+    await seedUser('ana');
+    await seedUser('bia');
+  });
+
+  test('cada um se conecta só em nome próprio, no id de/para', async () => {
+    await assertSucceeds(setDoc(doc(as('ana'), 'follows/ana_bia'), follow('ana', 'bia')));
+    await assertFails(setDoc(doc(as('bia'), 'follows/ana_bia'), follow('ana', 'bia')));
+    await assertFails(setDoc(doc(as('ana'), 'follows/ana_caio'), follow('ana', 'bia')));
+    await assertFails(setDoc(doc(as('ana'), 'follows/ana_ana'), follow('ana', 'ana')));
+  });
+
+  test('só com perfil existente, horário do servidor e sem campos extras', async () => {
+    const db = as('ana');
+    await assertFails(setDoc(doc(db, 'follows/ana_fantasma'), follow('ana', 'fantasma')));
+    await assertFails(setDoc(doc(db, 'follows/ana_bia'), follow('ana', 'bia', { createdAt: Timestamp.now() })));
+    await assertFails(setDoc(doc(db, 'follows/ana_bia'), { ...follow('ana', 'bia'), lat: -19.5 }));
+  });
+
+  test('quem está logado vê quem segue quem', async () => {
+    await seed((db) => setDoc(doc(db, 'follows/ana_bia'), { from: 'ana', to: 'bia', createdAt: Timestamp.now() }));
+    const db = as('caio');
+    await assertSucceeds(getDocs(query(collection(db, 'follows'), where('from', '==', 'ana'))));
+    await assertSucceeds(getDocs(query(collection(db, 'follows'), where('to', '==', 'bia'))));
+    await assertFails(getDocs(collection(anonymous(), 'follows')));
+  });
+
+  test('só quem seguiu desfaz a conexão', async () => {
+    await seed((db) => setDoc(doc(db, 'follows/ana_bia'), { from: 'ana', to: 'bia', createdAt: Timestamp.now() }));
+    await assertFails(deleteDoc(doc(as('bia'), 'follows/ana_bia')));
+    await assertSucceeds(deleteDoc(doc(as('ana'), 'follows/ana_bia')));
+  });
+});
+
+describe('conexões (match, pausado no app)', () => {
+  const swipe = (from, to, decision = 'like', overrides = {}) => ({
+    from,
+    to,
+    decision,
+    source: 'afinidade',
+    score: 0.42,
+    createdAt: serverTimestamp(),
+    ...overrides,
+  });
+  const seedSwipe = (from, to, decision) =>
+    seed((db) => setDoc(doc(db, 'swipes', from + '_' + to), { ...swipe(from, to, decision), createdAt: Timestamp.now() }));
+  const match = (users) => ({ users, createdAt: serverTimestamp() });
+
+  test('cada um grava só as próprias decisões, no id de/para', async () => {
+    await assertSucceeds(setDoc(doc(as('ana'), 'swipes/ana_bia'), swipe('ana', 'bia')));
+    await assertSucceeds(
+      setDoc(doc(as('ana'), 'swipes/ana_caio'), swipe('ana', 'caio', 'pass', { source: 'controle', score: 0 })),
+    );
+    await assertFails(setDoc(doc(as('bia'), 'swipes/ana_bia'), swipe('ana', 'bia')));
+    await assertFails(setDoc(doc(as('ana'), 'swipes/ana_caio'), swipe('ana', 'bia')));
+    await assertFails(setDoc(doc(as('ana'), 'swipes/ana_ana'), swipe('ana', 'ana')));
+  });
+
+  test('decisão, fonte e nota só com valores válidos', async () => {
+    const db = as('ana');
+    await assertFails(setDoc(doc(db, 'swipes/ana_bia'), swipe('ana', 'bia', 'superlike')));
+    await assertFails(setDoc(doc(db, 'swipes/ana_bia'), swipe('ana', 'bia', 'like', { source: 'outro' })));
+    await assertFails(setDoc(doc(db, 'swipes/ana_bia'), swipe('ana', 'bia', 'like', { score: 1.5 })));
+    await assertFails(setDoc(doc(db, 'swipes/ana_bia'), swipe('ana', 'bia', 'like', { createdAt: Timestamp.now() })));
+    await assertFails(setDoc(doc(db, 'swipes/ana_bia'), { ...swipe('ana', 'bia'), lat: -19.5 }));
+  });
+
+  test('curtida recebida é visível; passe recebido não', async () => {
+    await seedSwipe('bia', 'ana', 'like');
+    await seedSwipe('caio', 'ana', 'pass');
+    await assertSucceeds(getDoc(doc(as('ana'), 'swipes/bia_ana')));
+    await assertFails(getDoc(doc(as('ana'), 'swipes/caio_ana')));
+    // Nem decisões entre outras pessoas.
+    await assertFails(getDoc(doc(as('dani'), 'swipes/bia_ana')));
+  });
+
+  test('lista só as próprias decisões', async () => {
+    await seedSwipe('ana', 'bia', 'pass');
+    const db = as('ana');
+    await assertSucceeds(getDocs(query(collection(db, 'swipes'), where('from', '==', 'ana'))));
+    await assertFails(getDocs(query(collection(db, 'swipes'), where('to', '==', 'ana'))));
+    await assertFails(getDocs(collection(db, 'swipes')));
+  });
+
+  test('curtida e match no mesmo lote quando o outro já curtiu', async () => {
+    await seedSwipe('bia', 'ana', 'like');
+    const db = as('ana');
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'swipes/ana_bia'), swipe('ana', 'bia'));
+    batch.set(doc(db, 'matches/ana_bia'), match(['ana', 'bia']));
+    await assertSucceeds(batch.commit());
+    await assertSucceeds(getDoc(doc(db, 'matches/ana_bia')));
+    await assertSucceeds(getDoc(doc(as('bia'), 'matches/ana_bia')));
+    await assertFails(getDoc(doc(as('caio'), 'matches/ana_bia')));
+  });
+
+  test('match sem as duas curtidas é recusado', async () => {
+    await seedSwipe('ana', 'bia', 'like');
+    await assertFails(setDoc(doc(as('ana'), 'matches/ana_bia'), match(['ana', 'bia'])));
+    await seedSwipe('bia', 'ana', 'pass');
+    await assertFails(setDoc(doc(as('ana'), 'matches/ana_bia'), match(['ana', 'bia'])));
+  });
+
+  test('match com id fora de ordem, de terceiros ou repetido é recusado', async () => {
+    await seedSwipe('ana', 'bia', 'like');
+    await seedSwipe('bia', 'ana', 'like');
+    await assertFails(setDoc(doc(as('ana'), 'matches/bia_ana'), match(['bia', 'ana'])));
+    await assertFails(setDoc(doc(as('caio'), 'matches/ana_bia'), match(['ana', 'bia'])));
+    await assertSucceeds(setDoc(doc(as('ana'), 'matches/ana_bia'), match(['ana', 'bia'])));
+    // O outro lado chegando depois não sobrescreve o match.
+    await assertFails(setDoc(doc(as('bia'), 'matches/ana_bia'), match(['ana', 'bia'])));
+    await assertFails(deleteDoc(doc(as('bia'), 'matches/ana_bia')));
+  });
+
+  test('lista só os próprios matches', async () => {
+    const db = as('ana');
+    await assertSucceeds(getDocs(query(collection(db, 'matches'), where('users', 'array-contains', 'ana'))));
+    await assertFails(getDocs(collection(db, 'matches')));
+  });
+});
+
+describe('experimento de campo', () => {
+  const events = [
+    { t: 1, type: 'session' },
+    { t: 2, type: 'battery', level: 80 },
+  ];
+  const batch = (overrides = {}) => ({ events, count: events.length, createdAt: serverTimestamp(), ...overrides });
+
+  test('o participante envia, lê e apaga os próprios lotes', async () => {
+    const db = as('ana');
+    const ref = await assertSucceeds(addDoc(collection(db, 'telemetry/ana/batches'), batch()));
+    await assertSucceeds(getDocs(collection(db, 'telemetry/ana/batches')));
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  test('ninguém envia nem lê lotes de outra pessoa', async () => {
+    await seed((db) => setDoc(doc(db, 'telemetry/ana/batches/b1'), { ...batch(), createdAt: Timestamp.now() }));
+    await assertFails(addDoc(collection(as('bia'), 'telemetry/ana/batches'), batch()));
+    await assertFails(getDocs(collection(as('bia'), 'telemetry/ana/batches')));
+    await assertFails(deleteDoc(doc(as('bia'), 'telemetry/ana/batches/b1')));
+  });
+
+  test('lote vazio, grande demais, com contagem errada ou campos extras é recusado', async () => {
+    const batches = collection(as('ana'), 'telemetry/ana/batches');
+    await assertFails(addDoc(batches, batch({ events: [], count: 0 })));
+    const many = Array.from({ length: 501 }, (_, t) => ({ t, type: 'gps' }));
+    await assertFails(addDoc(batches, batch({ events: many, count: many.length })));
+    await assertFails(addDoc(batches, batch({ count: 99 })));
+    await assertFails(addDoc(batches, batch({ uid: 'ana' })));
+  });
+
+  test('lotes enviados não são alterados', async () => {
+    await seed((db) => setDoc(doc(db, 'telemetry/ana/batches/b1'), { ...batch(), createdAt: Timestamp.now() }));
+    await assertFails(updateDoc(doc(as('ana'), 'telemetry/ana/batches/b1'), { count: 1 }));
+  });
+
+  test('o consentimento fica nos dados privados do dono', async () => {
+    const consent = { enrolled: true, updatedAt: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(as('ana'), 'users/ana/private/experiment'), consent));
+    await assertFails(getDoc(doc(as('bia'), 'users/ana/private/experiment')));
+  });
+});

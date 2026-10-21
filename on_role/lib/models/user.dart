@@ -1,31 +1,60 @@
+import 'media.dart';
+
+/// Perfil público. E-mail e senha ficam só na camada de autenticação.
 class User {
   String id;
   String name;
-  String email;
-  String password;
   String? avatarUrl;
   String? bio;
-  DateTime birthDate;
+
+  /// Foto de perfil (guardada no banco como as mídias dos posts).
+  MediaRef? photo;
+
+  /// "Gostos de rolê" declarados (ver interest_catalog.dart): parte da
+  /// afinidade do match geossocial.
+  List<String> interests;
+
+  /// Só vem preenchida para o próprio usuário (fica num documento privado).
+  DateTime? birthDate;
+
+  /// Check-ins por local (id do local → quantidade): base do match geossocial.
+  Map<String, int> visits;
 
   User({
     required this.id,
     required this.name,
-    required this.email,
-    required this.password,
     this.avatarUrl,
     this.bio,
-    required this.birthDate,
-  });
+    this.photo,
+    List<String>? interests,
+    this.birthDate,
+    Map<String, int>? visits,
+  }) : interests = interests ?? [],
+       visits = visits ?? {};
+
+  /// "@anasouza", mostrado abaixo do nome.
+  String get handle => '@${name.toLowerCase().replaceAll(' ', '')}';
+
+  /// Total de check-ins, somando todos os locais.
+  int get totalVisits => visits.values.fold(0, (sum, count) => sum + count);
 
   factory User.fromJson(Map<String, dynamic> json) {
+    final photo = json['photo'] as Map?;
     return User(
       id: json['id'],
       name: json['name'],
-      email: json['email'],
-      password: json['password'],
       avatarUrl: json['avatarUrl'],
       bio: json['bio'],
-      birthDate: DateTime.parse(json['birthDate']),
+      photo: photo == null
+          ? null
+          : MediaRef.fromJson(Map<String, dynamic>.from(photo)),
+      interests: List<String>.from(json['interests'] as List? ?? const []),
+      birthDate: json['birthDate'] == null
+          ? null
+          : DateTime.parse(json['birthDate']),
+      visits: (json['visits'] as Map<String, dynamic>?)?.map(
+        (venueId, count) => MapEntry(venueId, count as int),
+      ),
     );
   }
 
@@ -33,11 +62,12 @@ class User {
     return {
       'id': id,
       'name': name,
-      'email': email,
-      'password': password,
       'avatarUrl': avatarUrl,
       'bio': bio,
-      'birthDate': birthDate.toIso8601String(),
+      'photo': photo?.toJson(),
+      'interests': interests,
+      'birthDate': birthDate?.toIso8601String(),
+      'visits': visits,
     };
   }
 }

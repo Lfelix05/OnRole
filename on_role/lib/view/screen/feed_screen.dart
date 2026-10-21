@@ -1,157 +1,86 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../models/posts.dart';
+import '../../models/user.dart';
+import '../../models/venue.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/posts_provider.dart';
+import '../../providers/presence_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_widgets.dart';
+import '../compose_screen.dart';
+import '../post_detail_screen.dart';
+import '../widgets/post_card.dart';
+import '../widgets/stories_bar.dart';
+import '../widgets/user_avatar.dart';
 
-class FeedScreen extends StatefulWidget {
+/// Início: stories no topo e os posts em cartões, os mais recentes primeiro.
+class FeedScreen extends StatelessWidget {
   const FeedScreen({super.key});
 
   @override
-  State<FeedScreen> createState() => _FeedScreenState();
-}
-
-class _FeedScreenState extends State<FeedScreen> {
-  final _contentController = TextEditingController();
-
-  @override
-  void dispose() {
-    _contentController.dispose();
-    super.dispose();
-  }
-
-  void _openNewPostSheet() {
-    final authorId = context.read<AuthProvider>().currentUser?.id;
-    if (authorId == null) return;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surfaceHigh,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      isScrollControlled: true,
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20.0,
-            right: 20.0,
-            top: 20.0,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20.0,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Novo post',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-              const SizedBox(height: 14.0),
-              TextField(
-                controller: _contentController,
-                maxLines: 3,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(hintText: 'O que tá rolando?'),
-              ),
-              const SizedBox(height: 14.0),
-              GradientButton(
-                label: 'Publicar',
-                onPressed: () {
-                  final content = _contentController.text.trim();
-                  if (content.isEmpty) return;
-                  context.read<PostsProvider>().addPost(
-                        title: 'Novo rolê',
-                        content: content,
-                        authorId: authorId,
-                      );
-                  _contentController.clear();
-                  Navigator.pop(context);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  String _timeAgo(DateTime date) {
-    final diff = DateTime.now().difference(date);
-    if (diff.inMinutes < 1) return 'agora';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} min';
-    if (diff.inHours < 24) return '${diff.inHours} h';
-    return '${diff.inDays} d';
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final posts = context.watch<PostsProvider>().posts;
-    final postsProvider = context.read<PostsProvider>();
-    final auth = context.watch<AuthProvider>();
+    final postsProvider = context.watch<PostsProvider>();
+    final posts = postsProvider.posts;
+    final me = context.watch<AuthProvider>().currentUser;
+    final checkedInVenue = context.watch<PresenceProvider>().checkedInVenue;
 
     return Scaffold(
       floatingActionButton: FloatingActionButton(
-        onPressed: _openNewPostSheet,
+        tooltip: 'Novo post',
+        onPressed: () => ComposeScreen.open(context),
         backgroundColor: AppColors.primary,
-        child: const Icon(Icons.add, color: Colors.white),
+        child: const Icon(Icons.edit_outlined, color: Colors.white),
       ),
       body: AppBackground(
         child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-                child: Row(
-                  children: [
-                    const Text(
-                      'OnRolê',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                    const Spacer(),
-                    InitialAvatar(name: auth.currentUser?.name ?? '?', radius: 18),
-                  ],
+          bottom: false,
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(child: _Header(user: me)),
+              if (checkedInVenue != null)
+                SliverToBoxAdapter(
+                  child: _CheckInBanner(venue: checkedInVenue),
                 ),
-              ),
-              SizedBox(
-                height: 84,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  children: [
-                    const _StoryItem(name: 'Você', ringColor: AppColors.border),
-                    for (final user in auth.otherUsers)
-                      _StoryItem(name: user.name, ringColor: AppColors.primary),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: posts.isEmpty
-                    ? Center(
-                        child: Text(
-                          'Nenhum post ainda.\nSeja o primeiro a compartilhar o rolê!',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textSecondary),
+              const SliverToBoxAdapter(child: StoriesBar()),
+              SliverToBoxAdapter(child: _ComposePrompt(user: me)),
+              if (!postsProvider.isLoaded)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (posts.isEmpty)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _EmptyFeed(),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  sliver: SliverList.separated(
+                    itemCount: posts.length + (postsProvider.hasMore ? 1 : 0),
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      if (index == posts.length) {
+                        return _LoadMoreButton(
+                          onPressed: postsProvider.loadMore,
+                        );
+                      }
+                      final post = posts[index];
+                      return PostCard(
+                        post: post,
+                        framed: true,
+                        onOpen: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => PostDetailScreen(post: post),
+                          ),
                         ),
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        itemCount: posts.length,
-                        separatorBuilder: (context, index) => const Divider(height: 32),
-                        itemBuilder: (context, index) {
-                          final post = posts[index];
-                          return _PostTile(
-                            authorName: postsProvider.authorName(post.authorId),
-                            post: post,
-                            timeAgo: _timeAgo(post.createdAt),
-                          );
-                        },
-                      ),
-              ),
+                      );
+                    },
+                  ),
+                ),
+              // Espaço para o botão flutuante não cobrir o último post.
+              const SliverToBoxAdapter(child: SizedBox(height: 96)),
             ],
           ),
         ),
@@ -160,63 +89,237 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 }
 
-class _StoryItem extends StatelessWidget {
-  const _StoryItem({required this.name, required this.ringColor});
+/// Marca do app em gradiente e a foto de quem está logado.
+class _Header extends StatelessWidget {
+  const _Header({required this.user});
 
-  final String name;
-  final Color ringColor;
+  final User? user;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 68,
-      child: Column(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 16, 2),
+      child: Row(
         children: [
-          InitialAvatar(name: name, radius: 26, ringColor: ringColor),
-          const SizedBox(height: 6.0),
-          Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.0),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShaderMask(
+                  blendMode: BlendMode.srcIn,
+                  shaderCallback: (bounds) => const LinearGradient(
+                    colors: [Color(0xFFC4B5FD), Color(0xFFA855F7)],
+                  ).createShader(bounds),
+                  child: const Text(
+                    'OnRolê',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const Text(
+                  'O que tá rolando por aí',
+                  style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                ),
+              ],
+            ),
           ),
+          if (user != null)
+            Container(
+              padding: const EdgeInsets.all(2),
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: AppColors.primaryGradient,
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: const BoxDecoration(
+                  color: AppColors.background,
+                  shape: BoxShape.circle,
+                ),
+                child: UserAvatar(user: user!, radius: 17),
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-class _PostTile extends StatelessWidget {
-  const _PostTile({required this.authorName, required this.post, required this.timeAgo});
+/// Aviso de check-in ativo, com atalho para postar do local.
+class _CheckInBanner extends StatelessWidget {
+  const _CheckInBanner({required this.venue});
 
-  final String authorName;
-  final Posts post;
-  final String timeAgo;
+  final Venue venue;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+        decoration: BoxDecoration(
+          color: AppColors.success.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.success.withValues(alpha: 0.35)),
+        ),
+        child: Row(
           children: [
-            InitialAvatar(name: authorName, radius: 16),
-            const SizedBox(width: 10.0),
-            Text(authorName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.0)),
-            const SizedBox(width: 8.0),
-            Text('· $timeAgo', style: const TextStyle(color: AppColors.textTertiary, fontSize: 12.0)),
+            const Icon(Icons.check_circle, color: AppColors.success, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Você está no rolê',
+                    style: TextStyle(
+                      color: AppColors.success,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    venue.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: () => ComposeScreen.open(context),
+              style: TextButton.styleFrom(foregroundColor: AppColors.success),
+              child: const Text('Postar daqui'),
+            ),
           ],
         ),
-        const SizedBox(height: 8.0),
-        Text(post.content, style: const TextStyle(color: Colors.white, fontSize: 14.0, height: 1.3)),
-        if (post.type != PostType.text) ...[
-          const SizedBox(height: 10.0),
-          SizedBox(
-            height: 160,
-            child: MediaPlaceholder(showPlayIcon: post.type == PostType.video),
+      ),
+    );
+  }
+}
+
+/// Atalho para escrever um post.
+class _ComposePrompt extends StatelessWidget {
+  const _ComposePrompt({required this.user});
+
+  final User? user;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: Material(
+        color: AppColors.surface,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.border),
+        ),
+        child: InkWell(
+          onTap: () => ComposeScreen.open(context),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+            child: Row(
+              children: [
+                user == null
+                    ? const InitialAvatar(name: '?', radius: 18)
+                    : UserAvatar(user: user!, radius: 18),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'O que tá rolando?',
+                    style: TextStyle(
+                      color: AppColors.textTertiary,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.photo_library_outlined,
+                    color: AppColors.primarySoft,
+                    size: 18,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
-      ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LoadMoreButton extends StatelessWidget {
+  const _LoadMoreButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white,
+          backgroundColor: AppColors.surface,
+          side: const BorderSide(color: AppColors.border),
+          shape: const StadiumBorder(),
+        ),
+        child: const Text('Carregar mais'),
+      ),
+    );
+  }
+}
+
+class _EmptyFeed extends StatelessWidget {
+  const _EmptyFeed();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.nightlife_rounded,
+                color: AppColors.primarySoft,
+                size: 30,
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Nenhum post ainda.\nChame a galera para o primeiro rolê!',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

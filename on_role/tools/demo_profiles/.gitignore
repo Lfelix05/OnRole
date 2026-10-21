@@ -1,0 +1,7 @@
+node_modules/
+# Contas criadas (e-mail e senha dos perfis de demonstração): só nesta máquina.
+out/
+# Chaves de conta de serviço: nunca no repositório (ele é público).
+service-account*.json
+*-firebase-adminsdk-*.json
+credentials*.json

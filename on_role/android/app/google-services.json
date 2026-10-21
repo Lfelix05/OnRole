@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "123172023193",
+    "project_id": "onrole-tcc",
+    "storage_bucket": "onrole-tcc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:123172023193:android:3e86765fa54b7823ae0108",
+        "android_client_info": {
+          "package_name": "br.com.onrole.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC0v4efkpFoUIy0MRS9FeXxxbsA0Km_ozk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

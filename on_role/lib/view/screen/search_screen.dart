@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../data/venue_catalog.dart';
 import '../../models/posts.dart';
 import '../../models/user.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/posts_provider.dart';
+import '../../services/text_search.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_widgets.dart';
+import '../post_detail_screen.dart';
+import '../user_profile_screen.dart';
+import '../widgets/media_view.dart';
+import '../widgets/user_avatar.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -16,41 +22,69 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> {
+  final _query = TextEditingController();
   bool _peopleOnly = false;
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final postsProvider = context.watch<PostsProvider>();
+    final query = _query.text.trim();
+
     final people = [
-      if (auth.currentUser != null) auth.currentUser!,
-      ...auth.otherUsers,
+      for (final user in auth.otherUsers)
+        if (matchesSearch(query, [
+          user.name,
+          user.handle,
+          user.bio,
+          ...user.interests,
+        ]))
+          user,
     ];
+    // Só posts com foto ou vídeo: a busca é uma vitrine visual, e os posts de
+    // texto ficam no feed.
+    final posts = _peopleOnly
+        ? const <Posts>[]
+        : [
+            for (final post in postsProvider.posts)
+              if (post.media.isNotEmpty &&
+                  matchesSearch(query, [
+                    post.text,
+                    post.authorName,
+                    findVenue(post.venueId)?.name,
+                  ]))
+                post,
+          ];
+
+    // Contagem sobre os posts já carregados no feed.
+    int postCountOf(String userId) =>
+        postsProvider.posts.where((post) => post.authorId == userId).length;
+    Widget personCard(User user) =>
+        _PersonCard(user: user, postCount: postCountOf(user.id));
 
     final items = <Widget>[];
-    if (_peopleOnly) {
-      for (final user in people) {
-        items.add(_PersonCard(user: user, postCount: postsProvider.postsByAuthor(user.id).length));
-      }
+    if (query.isNotEmpty || _peopleOnly) {
+      // Buscando: primeiro as pessoas, depois os posts.
+      items
+        ..addAll(people.map(personCard))
+        ..addAll(posts.map((post) => _PostCard(post: post)));
     } else {
-      final posts = postsProvider.posts;
+      // Sem busca: posts e pessoas intercalados, como uma vitrine.
       var personIndex = 0;
       for (var i = 0; i < posts.length; i++) {
-        items.add(_PostCard(post: posts[i], authorName: postsProvider.authorName(posts[i].authorId)));
+        items.add(_PostCard(post: posts[i]));
         if (personIndex < people.length && i.isOdd) {
-          items.add(_PersonCard(
-            user: people[personIndex],
-            postCount: postsProvider.postsByAuthor(people[personIndex].id).length,
-          ));
-          personIndex++;
+          items.add(personCard(people[personIndex++]));
         }
       }
       while (personIndex < people.length) {
-        items.add(_PersonCard(
-          user: people[personIndex],
-          postCount: postsProvider.postsByAuthor(people[personIndex].id).length,
-        ));
-        personIndex++;
+        items.add(personCard(people[personIndex++]));
       }
     }
 
@@ -62,27 +96,58 @@ class _SearchScreenState extends State<SearchScreen> {
             children: [
               const Padding(
                 padding: EdgeInsets.fromLTRB(20, 16, 20, 12),
-                child: Text('Buscar', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                child: Text(
+                  'Buscar',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14)),
-                  child: const Row(
+                  padding: const EdgeInsets.only(left: 14, right: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
                     children: [
-                      Icon(Icons.search, color: AppColors.textSecondary, size: 20),
-                      SizedBox(width: 10),
+                      const Icon(
+                        Icons.search,
+                        color: AppColors.textSecondary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: TextField(
-                          style: TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            hintText: 'Pessoas, postagens, lugares...',
+                          controller: _query,
+                          onChanged: (_) => setState(() {}),
+                          textInputAction: TextInputAction.search,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: const InputDecoration(
+                            hintText: 'Pessoas, gostos, posts ou locais',
                             border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            filled: false,
                             isDense: true,
+                            contentPadding: EdgeInsets.symmetric(vertical: 14),
                           ),
                         ),
                       ),
+                      if (_query.text.isNotEmpty)
+                        IconButton(
+                          tooltip: 'Limpar busca',
+                          icon: const Icon(
+                            Icons.close,
+                            color: AppColors.textSecondary,
+                            size: 18,
+                          ),
+                          onPressed: () => setState(_query.clear),
+                        ),
                     ],
                   ),
                 ),
@@ -92,25 +157,49 @@ class _SearchScreenState extends State<SearchScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
                 child: Row(
                   children: [
-                    _FilterChip(label: 'Todos', selected: !_peopleOnly, onTap: () => setState(() => _peopleOnly = false)),
+                    _FilterChip(
+                      label: 'Todos',
+                      selected: !_peopleOnly,
+                      onTap: () => setState(() => _peopleOnly = false),
+                    ),
                     const SizedBox(width: 10.0),
-                    _FilterChip(label: 'Pessoas', selected: _peopleOnly, onTap: () => setState(() => _peopleOnly = true)),
+                    _FilterChip(
+                      label: 'Pessoas',
+                      selected: _peopleOnly,
+                      onTap: () => setState(() => _peopleOnly = true),
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 16.0),
               Expanded(
                 child: items.isEmpty
-                    ? Center(child: Text('Nada por aqui ainda.', style: TextStyle(color: AppColors.textSecondary)))
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Text(
+                            query.isEmpty
+                                ? 'Nada por aqui ainda.'
+                                : 'Nada encontrado para "$query".',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      )
                     : GridView.builder(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
                         itemCount: items.length,
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 0.82,
-                        ),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              mainAxisSpacing: 12,
+                              crossAxisSpacing: 12,
+                              childAspectRatio: 0.82,
+                            ),
                         itemBuilder: (context, index) => items[index],
                       ),
               ),
@@ -123,7 +212,11 @@ class _SearchScreenState extends State<SearchScreen> {
 }
 
 class _FilterChip extends StatelessWidget {
-  const _FilterChip({required this.label, required this.selected, required this.onTap});
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   final String label;
   final bool selected;
@@ -154,48 +247,79 @@ class _FilterChip extends StatelessWidget {
 }
 
 class _PostCard extends StatelessWidget {
-  const _PostCard({required this.post, required this.authorName});
+  const _PostCard({required this.post});
 
   final Posts post;
-  final String authorName;
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          const MediaPlaceholder(borderRadius: 0),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black.withValues(alpha: 0.75)],
+    final image = post.media.where((item) => !item.isVideo).firstOrNull;
+    return GestureDetector(
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => PostDetailScreen(post: post))),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (image != null)
+              MediaImage(media: image)
+            else
+              const MediaPlaceholder(borderRadius: 0),
+            if (post.media.first.isVideo || post.media.length > 1)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Icon(
+                  post.media.first.isVideo ? Icons.videocam : Icons.collections,
+                  color: Colors.white,
+                  size: 18,
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(authorName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                  Text(
-                    post.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.75),
+                    ],
                   ),
-                ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      post.authorName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    Text(
+                      '${post.likeCount} curtidas · ${post.replyCount} respostas',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -209,22 +333,83 @@ class _PersonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final handle = '@${user.name.toLowerCase().replaceAll(' ', '')}';
-    return Container(
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14)),
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          InitialAvatar(name: user.name, radius: 26),
-          const SizedBox(height: 10.0),
-          Text(user.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-          const SizedBox(height: 2.0),
-          Text(
-            '$handle · $postCount',
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+    return Material(
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => UserProfileScreen.open(context, user),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              UserAvatar(user: user, radius: 34),
+              const SizedBox(height: 10),
+              Text(
+                user.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                user.handle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                postCount == 1 ? '1 post' : '$postCount posts',
+                style: const TextStyle(
+                  color: AppColors.textTertiary,
+                  fontSize: 11,
+                ),
+              ),
+              if (user.interests.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: [
+                    for (final interest in user.interests.take(2))
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          interest,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.primarySoft,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

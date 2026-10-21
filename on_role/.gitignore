@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase CLI
+firebase-debug.log
+firestore-debug.log
+
+# Testes das regras do Firestore (Node)
+firestore_tests/node_modules/

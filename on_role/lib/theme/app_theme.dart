@@ -18,6 +18,15 @@ class AppColors {
   static const textSecondary = Color(0xFFA1A1AA);
   static const textTertiary = Color(0xFF6B6875);
 
+  /// Check-in confirmado.
+  static const success = Color(0xFF10B981);
+
+  /// Posição do usuário no mapa.
+  static const userLocation = Color(0xFF06B6D4);
+
+  /// Avisos (ex.: modo de simulação ligado).
+  static const warning = Color(0xFFF59E0B);
+
   static const primaryGradient = LinearGradient(
     colors: [Color(0xFFA855F7), AppColors.primaryStrong],
     begin: Alignment.centerLeft,
