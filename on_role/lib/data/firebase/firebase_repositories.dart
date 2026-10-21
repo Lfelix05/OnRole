@@ -16,7 +16,7 @@ import 'firebase_social_repositories.dart';
 //   users/{uid}/private/account    só o dono: email, birthDate
 //   users/{uid}/checkins/{id}      só o dono: venueId, checkedInAt, checkedOutAt
 //   presence/{uid}                 onde o usuário está agora: venueId, since, lastSeenAt
-//   posts, stories e media         ver firebase_social_repositories.dart
+//   posts, stories, media, follows ver firebase_social_repositories.dart
 //
 // Nenhum documento guarda coordenadas: a geocerca roda no aparelho e só o
 // local do check-in sobe para o servidor.
@@ -32,6 +32,7 @@ Repositories createFirebaseRepositories() {
     posts: FirebasePostRepository(db),
     stories: FirebaseStoryRepository(db),
     media: FirebaseMediaRepository(db),
+    follows: FirebaseFollowRepository(db),
     matches: FirebaseMatchRepository(db),
     experiment: FirebaseExperimentRepository(db),
   );

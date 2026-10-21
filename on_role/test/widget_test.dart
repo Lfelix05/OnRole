@@ -92,7 +92,7 @@ void main() {
         findsOneWidget,
       );
       // A tela de cadastro saiu e ficou o início.
-      expect(find.text('Conexões'), findsOneWidget);
+      expect(find.text('Procurar'), findsOneWidget);
     });
 
     testWidgets('quem já tem conta e entra não recebe o convite', (
@@ -107,12 +107,12 @@ void main() {
       await tester.pumpWidget(MainApp(repositories: repositories));
       await _pumpFrames(tester);
 
-      expect(find.text('Conexões'), findsOneWidget);
+      expect(find.text('Procurar'), findsOneWidget);
       expect(find.text(_invite), findsNothing);
     });
   });
 
-  testWidgets('perfil: fotos e vídeos na grade, textos na lista', (
+  testWidgets('perfil: abre na grade de fotos e vídeos, textos na lista', (
     tester,
   ) async {
     _mockPlugins(tester);
@@ -155,21 +155,59 @@ void main() {
       matching: find.byType(Scrollable),
     );
 
-    // Lista: só o post de texto.
+    // Abre em "Fotos e vídeos": só o post com foto.
     const textPost = 'Sextou no centro! Quem tá na rua hoje?';
     await tester.scrollUntilVisible(
-      find.text(textPost),
+      find.byType(MediaImage),
       200,
       scrollable: profileScroll,
     );
+    expect(find.byType(MediaImage), findsOneWidget);
+    expect(find.text(textPost), findsNothing);
+
+    // Lista: só o post de texto (o seletor fica fixo no topo).
+    await tester.tap(find.byIcon(Icons.reorder));
+    await _pumpFrames(tester);
     expect(find.text(textPost), findsOneWidget);
     expect(find.text('Foto do rolê'), findsNothing);
+    expect(find.byType(MediaImage), findsNothing);
+  });
 
-    // Grade: só o post com foto (o seletor fica fixo no topo).
-    await tester.tap(find.byIcon(Icons.grid_on));
+  testWidgets('tocar no autor do post abre o perfil, onde dá para conectar', (
+    tester,
+  ) async {
+    _mockPlugins(tester);
+    final db = MockDatabase();
+    final repositories = createMockRepositories(database: db);
+    await repositories.auth.signIn(
+      email: 'demo@onrole.com',
+      password: '123456',
+    );
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.625;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MainApp(repositories: repositories));
     await _pumpFrames(tester);
-    expect(find.text(textPost), findsNothing);
-    expect(find.byType(MediaImage), findsOneWidget);
+
+    // O Pedro ainda não é uma conexão do usuário demo.
+    final author = find.text('Pedro Lima');
+    await tester.ensureVisible(author);
+    await tester.tap(author);
+    await _pumpFrames(tester);
+    expect(find.text('@pedrolima'), findsWidgets);
+    expect(find.byIcon(Icons.grid_on), findsOneWidget);
+
+    await tester.tap(find.text('Conectar'));
+    await _pumpFrames(tester);
+    expect(find.text('Conectado'), findsOneWidget);
+    expect(db.followingOf('demo-user'), contains('pedro'));
+
+    // Tocar de novo desfaz.
+    await tester.tap(find.text('Conectado'));
+    await _pumpFrames(tester);
+    expect(find.text('Conectar'), findsOneWidget);
+    expect(db.followingOf('demo-user'), isNot(contains('pedro')));
   });
 
   testWidgets('busca filtra pessoas e não mostra posts de texto', (

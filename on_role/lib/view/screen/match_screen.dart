@@ -15,6 +15,8 @@ import '../matches_screen.dart';
 import '../widgets/media_view.dart';
 
 /// Conexões no estilo Tinder: pessoas que frequentam os mesmos rolês (H3).
+///
+/// Pausada: fora da navegação até a retomada (ver home_view.dart).
 class MatchScreen extends StatefulWidget {
   const MatchScreen({super.key});
 

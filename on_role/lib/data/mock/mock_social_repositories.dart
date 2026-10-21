@@ -8,8 +8,9 @@ import '../../models/user.dart';
 import '../repositories.dart';
 import 'mock_database.dart';
 
-// Posts, stories e mídia em memória. As validações repetem as regras do
-// Firestore (firestore.rules) para o mock se comportar como o servidor.
+// Posts, stories, mídia e conexões em memória. As validações repetem as
+// regras do Firestore (firestore.rules) para o mock se comportar como o
+// servidor.
 
 const _maxTextLength = 500;
 
@@ -197,4 +198,31 @@ class MockMediaRepository implements MediaRepository {
 
   @override
   Future<void> delete(MediaRef media) async => _db.removeMedia(media.id);
+}
+
+class MockFollowRepository implements FollowRepository {
+  MockFollowRepository(this._db);
+
+  final MockDatabase _db;
+
+  @override
+  Stream<Set<String>> watchFollowing(String userId) =>
+      watchValue(_db.changes, () => _db.followingOf(userId));
+
+  @override
+  Stream<Set<String>> watchFollowers(String userId) =>
+      watchValue(_db.changes, () => _db.followersOf(userId));
+
+  @override
+  Future<void> setFollowing({
+    required String fromId,
+    required String toId,
+    required bool following,
+  }) async {
+    if (fromId == toId) throw StateError('Não dá para seguir a si mesmo.');
+    if (following && _db.findUserById(toId) == null) {
+      throw StateError('Perfil não encontrado.');
+    }
+    _db.setFollowing(fromId, toId, following: following);
+  }
 }

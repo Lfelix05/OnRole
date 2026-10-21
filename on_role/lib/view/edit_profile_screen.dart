@@ -10,7 +10,8 @@ import '../services/media_drafts.dart';
 import '../theme/app_theme.dart';
 import 'widgets/user_avatar.dart';
 
-/// Foto, bio e gostos de rolê. Os gostos entram na afinidade das Conexões.
+/// Foto, bio e gostos de rolê. Os gostos aparecem no perfil e destacam o que
+/// a pessoa tem em comum com quem visita.
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
 
@@ -175,8 +176,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Até $maxInterests. Ajudam a sugerir conexões com quem curte '
-                  'o mesmo que você.',
+                  'Até $maxInterests. Aparecem no seu perfil e mostram o que '
+                  'você tem em comum com quem visita.',
                   style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,

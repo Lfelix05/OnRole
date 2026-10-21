@@ -32,6 +32,12 @@ class User {
   }) : interests = interests ?? [],
        visits = visits ?? {};
 
+  /// "@anasouza", mostrado abaixo do nome.
+  String get handle => '@${name.toLowerCase().replaceAll(' ', '')}';
+
+  /// Total de check-ins, somando todos os locais.
+  int get totalVisits => visits.values.fold(0, (sum, count) => sum + count);
+
   factory User.fromJson(Map<String, dynamic> json) {
     final photo = json['photo'] as Map?;
     return User(

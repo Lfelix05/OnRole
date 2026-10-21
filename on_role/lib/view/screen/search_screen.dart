@@ -31,9 +31,6 @@ class _SearchScreenState extends State<SearchScreen> {
     super.dispose();
   }
 
-  static String _handleOf(User user) =>
-      '@${user.name.toLowerCase().replaceAll(' ', '')}';
-
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -44,7 +41,7 @@ class _SearchScreenState extends State<SearchScreen> {
       for (final user in auth.otherUsers)
         if (matchesSearch(query, [
           user.name,
-          _handleOf(user),
+          user.handle,
           user.bio,
           ...user.interests,
         ]))
@@ -336,7 +333,6 @@ class _PersonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final handle = '@${user.name.toLowerCase().replaceAll(' ', '')}';
     return Material(
       color: AppColors.surface,
       shape: RoundedRectangleBorder(
@@ -365,7 +361,7 @@ class _PersonCard extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                handle,
+                user.handle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(

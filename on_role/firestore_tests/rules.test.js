@@ -388,7 +388,45 @@ describe('histórico de check-ins', () => {
   });
 });
 
-describe('conexões', () => {
+describe('conexões (seguir)', () => {
+  const follow = (from, to, overrides = {}) => ({ from, to, createdAt: serverTimestamp(), ...overrides });
+  const seedUser = (uid) => seed((db) => setDoc(doc(db, 'users', uid), { name: uid, visits: {}, createdAt: Timestamp.now() }));
+
+  beforeEach(async () => {
+    await seedUser('ana');
+    await seedUser('bia');
+  });
+
+  test('cada um se conecta só em nome próprio, no id de/para', async () => {
+    await assertSucceeds(setDoc(doc(as('ana'), 'follows/ana_bia'), follow('ana', 'bia')));
+    await assertFails(setDoc(doc(as('bia'), 'follows/ana_bia'), follow('ana', 'bia')));
+    await assertFails(setDoc(doc(as('ana'), 'follows/ana_caio'), follow('ana', 'bia')));
+    await assertFails(setDoc(doc(as('ana'), 'follows/ana_ana'), follow('ana', 'ana')));
+  });
+
+  test('só com perfil existente, horário do servidor e sem campos extras', async () => {
+    const db = as('ana');
+    await assertFails(setDoc(doc(db, 'follows/ana_fantasma'), follow('ana', 'fantasma')));
+    await assertFails(setDoc(doc(db, 'follows/ana_bia'), follow('ana', 'bia', { createdAt: Timestamp.now() })));
+    await assertFails(setDoc(doc(db, 'follows/ana_bia'), { ...follow('ana', 'bia'), lat: -19.5 }));
+  });
+
+  test('quem está logado vê quem segue quem', async () => {
+    await seed((db) => setDoc(doc(db, 'follows/ana_bia'), { from: 'ana', to: 'bia', createdAt: Timestamp.now() }));
+    const db = as('caio');
+    await assertSucceeds(getDocs(query(collection(db, 'follows'), where('from', '==', 'ana'))));
+    await assertSucceeds(getDocs(query(collection(db, 'follows'), where('to', '==', 'bia'))));
+    await assertFails(getDocs(collection(anonymous(), 'follows')));
+  });
+
+  test('só quem seguiu desfaz a conexão', async () => {
+    await seed((db) => setDoc(doc(db, 'follows/ana_bia'), { from: 'ana', to: 'bia', createdAt: Timestamp.now() }));
+    await assertFails(deleteDoc(doc(as('bia'), 'follows/ana_bia')));
+    await assertSucceeds(deleteDoc(doc(as('ana'), 'follows/ana_bia')));
+  });
+});
+
+describe('conexões (match, pausado no app)', () => {
   const swipe = (from, to, decision = 'like', overrides = {}) => ({
     from,
     to,

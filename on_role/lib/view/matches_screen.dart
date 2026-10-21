@@ -11,6 +11,8 @@ import 'user_profile_screen.dart';
 import 'widgets/user_avatar.dart';
 
 /// Pessoas com quem houve match (curtida recíproca).
+///
+/// Pausada junto com o match geossocial (ver home_view.dart).
 class MatchesScreen extends StatelessWidget {
   const MatchesScreen({super.key});
 

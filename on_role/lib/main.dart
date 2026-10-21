@@ -8,7 +8,9 @@ import 'data/repositories.dart';
 import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/experiment_provider.dart';
-import 'providers/match_provider.dart';
+import 'providers/follow_provider.dart';
+// Match geossocial pausado (ver home_view.dart).
+// import 'providers/match_provider.dart';
 import 'providers/media_loader.dart';
 import 'providers/posts_provider.dart';
 import 'providers/presence_provider.dart';
@@ -68,11 +70,18 @@ class MainApp extends StatelessWidget {
           ),
         ),
         ChangeNotifierProvider(
-          create: (context) => MatchProvider(
-            repository: repositories.matches,
+          create: (context) => FollowProvider(
+            repository: repositories.follows,
             auth: context.read<AuthProvider>(),
           ),
         ),
+        // Match geossocial pausado (ver home_view.dart).
+        // ChangeNotifierProvider(
+        //   create: (context) => MatchProvider(
+        //     repository: repositories.matches,
+        //     auth: context.read<AuthProvider>(),
+        //   ),
+        // ),
         Provider(create: (_) => MediaLoader(repositories.media)),
         ChangeNotifierProvider(
           create: (context) => PostsProvider(

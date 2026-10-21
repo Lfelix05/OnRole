@@ -27,6 +27,7 @@ Repositories createMockRepositories({
     posts: MockPostRepository(db),
     stories: MockStoryRepository(db),
     media: MockMediaRepository(db),
+    follows: MockFollowRepository(db),
     matches: MockMatchRepository(db),
     experiment: MockExperimentRepository(db),
   );

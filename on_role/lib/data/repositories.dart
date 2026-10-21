@@ -70,6 +70,21 @@ abstract class UserRepository {
   });
 }
 
+/// Conexões: uma pessoa segue a outra (sem precisar de reciprocidade).
+abstract class FollowRepository {
+  /// Ids de quem [userId] segue.
+  Stream<Set<String>> watchFollowing(String userId);
+
+  /// Ids de quem segue [userId].
+  Stream<Set<String>> watchFollowers(String userId);
+
+  Future<void> setFollowing({
+    required String fromId,
+    required String toId,
+    required bool following,
+  });
+}
+
 abstract class MatchRepository {
   /// Ids de quem a pessoa já avaliou (curtiu ou passou).
   Stream<Set<String>> watchSwipedIds(String userId);
@@ -197,6 +212,7 @@ class Repositories {
     required this.posts,
     required this.stories,
     required this.media,
+    required this.follows,
     required this.matches,
     required this.experiment,
   });
@@ -207,6 +223,9 @@ class Repositories {
   final PostRepository posts;
   final StoryRepository stories;
   final MediaRepository media;
+  final FollowRepository follows;
+
+  /// Match geossocial: fora da navegação por enquanto (ver home_view.dart).
   final MatchRepository matches;
   final ExperimentRepository experiment;
 }

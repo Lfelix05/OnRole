@@ -19,6 +19,7 @@ import '../repositories.dart';
 //                               createdAt, expiresAt
 //   media/{id}                  ownerId, kind, mimeType, size, chunkCount, createdAt
 //   media/{id}/chunks/{n}       data (até 900 KB de bytes)
+//   follows/{de}_{para}         from, to, createdAt (conexões: quem segue quem)
 //
 // Fotos e vídeos ficam no próprio banco, em pedaços, porque o Cloud Storage
 // exige o plano pago do Firebase.
@@ -307,5 +308,52 @@ class FirebaseMediaRepository implements MediaRepository {
       await doc.collection('chunks').doc('$i').delete();
     }
     await doc.delete();
+  }
+}
+
+class FirebaseFollowRepository implements FollowRepository {
+  FirebaseFollowRepository(this._db);
+
+  final FirebaseFirestore _db;
+
+  CollectionReference<Map<String, dynamic>> get _follows =>
+      _db.collection('follows');
+
+  @override
+  Stream<Set<String>> watchFollowing(String userId) =>
+      _idsWhere('from', userId, pick: 'to');
+
+  @override
+  Stream<Set<String>> watchFollowers(String userId) =>
+      _idsWhere('to', userId, pick: 'from');
+
+  @override
+  Future<void> setFollowing({
+    required String fromId,
+    required String toId,
+    required bool following,
+  }) {
+    final doc = _follows.doc('${fromId}_$toId');
+    if (!following) return doc.delete();
+    return doc.set({
+      'from': fromId,
+      'to': toId,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Stream<Set<String>> _idsWhere(
+    String field,
+    String userId, {
+    required String pick,
+  }) {
+    return _follows
+        .where(field, isEqualTo: userId)
+        .snapshots()
+        .map(
+          (snapshot) => {
+            for (final doc in snapshot.docs) doc.data()[pick] as String,
+          },
+        );
   }
 }

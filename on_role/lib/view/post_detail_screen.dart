@@ -6,6 +6,7 @@ import '../models/reply.dart';
 import '../providers/posts_provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_widgets.dart';
+import 'user_profile_screen.dart';
 import 'widgets/post_card.dart';
 import 'widgets/user_avatar.dart';
 
@@ -139,6 +140,14 @@ class _ReplyTile extends StatelessWidget {
 
   final Reply reply;
 
+  void _openAuthor(BuildContext context) {
+    UserProfileScreen.openAuthor(
+      context,
+      userId: reply.authorId,
+      name: reply.authorName,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -146,35 +155,42 @@ class _ReplyTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AuthorAvatar(
-            userId: reply.authorId,
-            name: reply.authorName,
-            radius: 14,
+          InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () => _openAuthor(context),
+            child: AuthorAvatar(
+              userId: reply.authorId,
+              name: reply.authorName,
+              radius: 14,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: reply.authorName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
+                GestureDetector(
+                  onTap: () => _openAuthor(context),
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: reply.authorName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
                         ),
-                      ),
-                      TextSpan(
-                        text: '  ${formatTimeAgo(reply.createdAt)}',
-                        style: const TextStyle(
-                          color: AppColors.textTertiary,
-                          fontSize: 12,
+                        TextSpan(
+                          text: '  ${formatTimeAgo(reply.createdAt)}',
+                          style: const TextStyle(
+                            color: AppColors.textTertiary,
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 2),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:on_role/view/screen/feed_screen.dart';
 import 'package:on_role/view/screen/map_screen.dart';
-import 'package:on_role/view/screen/match_screen.dart';
+// import 'package:on_role/view/screen/match_screen.dart';
 import 'package:on_role/view/screen/profile_screen.dart';
 import 'package:on_role/view/screen/search_screen.dart';
 import 'package:provider/provider.dart';
@@ -28,10 +28,14 @@ class _HomeViewState extends State<HomeView> {
     if (userId != null) context.read<PresenceProvider>().start(userId: userId);
   }
 
+  // Match geossocial (aba "Conexões" estilo Tinder) pausado até a retomada:
+  // a tela, o MatchProvider (main.dart) e os repositórios continuam no
+  // projeto, só fora da navegação. Por enquanto, "conexões" é seguir alguém
+  // pelo perfil (FollowProvider).
   List<Widget> get _pages => const <Widget>[
     FeedScreen(),
     MapScreen(),
-    MatchScreen(),
+    // MatchScreen(),
     SearchScreen(),
     ProfileScreen(),
   ];
@@ -50,11 +54,11 @@ class _HomeViewState extends State<HomeView> {
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Início'),
           BottomNavigationBarItem(icon: Icon(Icons.gps_fixed), label: 'Mapa'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.favorite_border),
-            activeIcon: Icon(Icons.favorite),
-            label: 'Conexões',
-          ),
+          // BottomNavigationBarItem(
+          //   icon: Icon(Icons.favorite_border),
+          //   activeIcon: Icon(Icons.favorite),
+          //   label: 'Conexões',
+          // ),
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Procurar'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
         ],

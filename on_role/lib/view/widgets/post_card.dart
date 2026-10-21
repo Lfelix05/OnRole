@@ -8,115 +8,200 @@ import '../../providers/auth_provider.dart';
 import '../../providers/posts_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_widgets.dart';
+import '../user_profile_screen.dart';
 import 'media_view.dart';
 import 'user_avatar.dart';
 
 const _likeColor = Color(0xFFEC4899);
 
-/// Post no estilo do Threads: avatar ao lado, texto, mídias e ações.
+/// Post: autor no topo (toque abre o perfil), texto, mídias e ações.
 class PostCard extends StatelessWidget {
-  const PostCard({super.key, required this.post, this.onOpen});
+  const PostCard({
+    super.key,
+    required this.post,
+    this.onOpen,
+    this.framed = false,
+    this.linkAuthor = true,
+  });
 
   final Posts post;
 
   /// Toque no post e no botão de respostas (no feed, abre a conversa).
   final VoidCallback? onOpen;
 
+  /// Em cartão próprio (feed e perfis); sem cartão na tela do post.
+  final bool framed;
+
+  /// Avatar e nome abrem o perfil de quem escreveu. Desligado quando já
+  /// estamos nesse perfil.
+  final bool linkAuthor;
+
+  void _openAuthor(BuildContext context) {
+    UserProfileScreen.openAuthor(
+      context,
+      userId: post.authorId,
+      name: post.authorName,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final myId = context.watch<AuthProvider>().currentUser?.id;
     final venue = findVenue(post.venueId);
     final liked = post.isLikedBy(myId);
+    final onAuthorTap = linkAuthor ? () => _openAuthor(context) : null;
 
-    return InkWell(
+    final content = InkWell(
       onTap: onOpen,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
-        child: Row(
+        padding: const EdgeInsets.fromLTRB(14, 12, 6, 4),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AuthorAvatar(
-              userId: post.authorId,
-              name: post.authorName,
-              radius: 18,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            Row(
+              children: [
+                _AuthorLink(
+                  onTap: onAuthorTap,
+                  label: 'Ver perfil de ${post.authorName}',
+                  circle: true,
+                  child: AuthorAvatar(
+                    userId: post.authorId,
+                    name: post.authorName,
+                    radius: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Flexible(
-                        child: Text(
-                          post.authorName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: _AuthorLink(
+                              onTap: onAuthorTap,
+                              label: 'Ver perfil de ${post.authorName}',
+                              child: Text(
+                                post.authorName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                          Text(
+                            '  ·  ${formatTimeAgo(post.createdAt)}',
+                            style: const TextStyle(
+                              color: AppColors.textTertiary,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        formatTimeAgo(post.createdAt),
-                        style: const TextStyle(
-                          color: AppColors.textTertiary,
-                          fontSize: 13,
+                      if (venue != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: VenueTag(venue: venue, atVenue: post.atVenue),
                         ),
-                      ),
-                      const Spacer(),
-                      if (post.authorId == myId) _PostMenu(post: post),
                     ],
                   ),
-                  if (venue != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: VenueTag(venue: venue, atVenue: post.atVenue),
-                    ),
-                  if (post.text.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4, right: 8),
-                      child: Text(
-                        post.text,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          height: 1.35,
-                        ),
-                      ),
-                    ),
-                  if (post.media.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 10, right: 8),
-                      child: PostMediaGallery(media: post.media),
-                    ),
-                  Row(
-                    children: [
-                      _ActionButton(
-                        icon: liked ? Icons.favorite : Icons.favorite_border,
-                        color: liked ? _likeColor : AppColors.textSecondary,
-                        count: post.likeCount,
-                        tooltip: liked ? 'Descurtir' : 'Curtir',
-                        onTap: () =>
-                            context.read<PostsProvider>().toggleLike(post),
-                      ),
-                      _ActionButton(
-                        icon: Icons.chat_bubble_outline,
-                        color: AppColors.textSecondary,
-                        count: post.replyCount,
-                        tooltip: 'Responder',
-                        onTap: onOpen,
-                      ),
-                    ],
+                ),
+                if (post.authorId == myId)
+                  _PostMenu(post: post)
+                else
+                  const SizedBox(width: 8),
+              ],
+            ),
+            if (post.text.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 10, right: 8),
+                child: Text(
+                  post.text,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            if (post.media.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 10, right: 8),
+                child: PostMediaGallery(media: post.media),
+              ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                children: [
+                  _ActionButton(
+                    icon: liked ? Icons.favorite : Icons.favorite_border,
+                    color: liked ? _likeColor : AppColors.textSecondary,
+                    count: post.likeCount,
+                    tooltip: liked ? 'Descurtir' : 'Curtir',
+                    onTap: () => context.read<PostsProvider>().toggleLike(post),
+                  ),
+                  _ActionButton(
+                    icon: Icons.chat_bubble_outline,
+                    color: AppColors.textSecondary,
+                    count: post.replyCount,
+                    tooltip: 'Responder',
+                    onTap: onOpen,
                   ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+
+    if (!framed) return content;
+    // Posts feitos com check-in no local ganham a borda do selo.
+    return Material(
+      color: AppColors.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: post.atVenue
+              ? AppColors.success.withValues(alpha: 0.35)
+              : AppColors.border,
+        ),
+      ),
+      child: content,
+    );
+  }
+}
+
+/// Avatar ou nome de quem escreveu, tocável para abrir o perfil.
+class _AuthorLink extends StatelessWidget {
+  const _AuthorLink({
+    required this.onTap,
+    required this.label,
+    required this.child,
+    this.circle = false,
+  });
+
+  final VoidCallback? onTap;
+  final String label;
+  final Widget child;
+  final bool circle;
+
+  @override
+  Widget build(BuildContext context) {
+    if (onTap == null) return child;
+    return Semantics(
+      button: true,
+      label: label,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: circle ? const CircleBorder() : null,
+        borderRadius: circle ? null : BorderRadius.circular(6),
+        child: child,
       ),
     );
   }

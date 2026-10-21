@@ -44,6 +44,9 @@ class MockDatabase {
   final Map<String, Uint8List> _media = {};
   final List<CheckIn> _checkIns = [];
 
+  /// Conexões: quem segue quem.
+  final Set<({String from, String to})> _follows = {};
+
   /// Chave "quem_avaliou_quem".
   final Map<String, Swipe> _swipes = {};
   final List<UserMatch> _matches = [];
@@ -173,6 +176,22 @@ class MockDatabase {
     _notify();
   }
 
+  Set<String> followingOf(String userId) => {
+    for (final follow in _follows)
+      if (follow.from == userId) follow.to,
+  };
+
+  Set<String> followersOf(String userId) => {
+    for (final follow in _follows)
+      if (follow.to == userId) follow.from,
+  };
+
+  void setFollowing(String fromId, String toId, {required bool following}) {
+    final follow = (from: fromId, to: toId);
+    following ? _follows.add(follow) : _follows.remove(follow);
+    _notify();
+  }
+
   Swipe? swipeOf(String fromId, String toId) => _swipes['${fromId}_$toId'];
 
   Set<String> swipedIdsOf(String userId) => {
@@ -260,6 +279,14 @@ class MockDatabase {
     _accounts['demo@onrole.com'] = (userId: demo.id, password: '123456');
 
     DateTime ago(Duration age) => DateTime.now().subtract(age);
+
+    // Algumas conexões para o perfil demo não começar vazio.
+    _follows.addAll([
+      (from: demo.id, to: ana.id),
+      (from: ana.id, to: demo.id),
+      (from: julia.id, to: demo.id),
+      (from: pedro.id, to: ana.id),
+    ]);
 
     // A Ana já curtiu o usuário demo: curtindo de volta, sai um match.
     _swipes['ana_demo-user'] = Swipe(
