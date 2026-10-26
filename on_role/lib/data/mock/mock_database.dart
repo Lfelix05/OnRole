@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
+import '../../app_mode.dart';
 import '../../models/check_in.dart';
 import '../../models/match.dart';
 import '../../models/media.dart';
@@ -8,6 +10,8 @@ import '../../models/posts.dart';
 import '../../models/reply.dart';
 import '../../models/story.dart';
 import '../../models/user.dart';
+import '../../services/affinity.dart';
+import '../../services/synthetic_population.dart';
 
 /// Emite o valor atual assim que alguém escuta e de novo a cada mudança. O
 /// valor inicial e a inscrição acontecem juntos, sem janela para perder um
@@ -25,11 +29,19 @@ Stream<T> watchValue<T>(Stream<void> changes, T Function() read) {
   return controller.stream;
 }
 
-/// Banco em memória que imita o back-end, com uma conta de demonstração
-/// (demo@onrole.com / 123456). Os dados somem quando o app fecha.
+/// Banco em memória que imita o back-end. Os dados somem quando o app fecha.
+///
+/// - Padrão (testes e `BACKEND=mock`): conta demo@onrole.com / 123456 e
+///   quatro pessoas de exemplo.
+/// - [MockDatabase.demo] (versão de demonstração): o visitante, sem cadastro,
+///   e uma população sintética gerada com semente fixa.
 class MockDatabase {
   MockDatabase() {
     _seed();
+  }
+
+  MockDatabase.demo({int seed = 1, int people = 30}) {
+    _seedDemo(seed: seed, people: people);
   }
 
   final List<User> _users = [];
@@ -50,8 +62,6 @@ class MockDatabase {
   /// Chave "quem_avaliou_quem".
   final Map<String, Swipe> _swipes = {};
   final List<UserMatch> _matches = [];
-  final Set<String> _enrolled = {};
-  final Map<String, List<Map<String, Object?>>> _telemetry = {};
   final _changes = StreamController<void>.broadcast();
 
   /// Avisa a cada alteração, para os repositórios emitirem dados novos.
@@ -215,22 +225,6 @@ class MockDatabase {
     return true;
   }
 
-  bool isEnrolled(String userId) => _enrolled.contains(userId);
-
-  void setEnrolled(String userId, bool enrolled) {
-    enrolled ? _enrolled.add(userId) : _enrolled.remove(userId);
-  }
-
-  /// Eventos do experimento enviados por cada pessoa.
-  List<Map<String, Object?>> telemetryOf(String userId) =>
-      List.unmodifiable(_telemetry[userId] ?? const []);
-
-  void addTelemetry(String userId, List<Map<String, Object?>> events) {
-    (_telemetry[userId] ??= []).addAll(events);
-  }
-
-  void clearTelemetry(String userId) => _telemetry.remove(userId);
-
   int _idSequence = 0;
 
   /// Id único para o que é criado em memória. Só o relógio não basta: no
@@ -239,6 +233,40 @@ class MockDatabase {
       '$prefix-${DateTime.now().microsecondsSinceEpoch}-${_idSequence++}';
 
   void _notify() => _changes.add(null);
+
+  void _seedDemo({required int seed, required int people}) {
+    final guest = User(
+      id: 'visitante',
+      name: 'Visitante',
+      bio: 'Perfil de demonstração. Nada aqui é seu nem sai do aparelho.',
+      interests: ['Bar', 'Samba e pagode', 'Praça e ar livre'],
+      visits: {'bakhanas': 4, 'espetinho-do-denis': 2, 'area-verde': 2, 'caraiva-beach-bar': 1},
+    );
+    final population = SyntheticPopulation(seed: seed);
+    final others = population.people(people);
+    _users
+      ..add(guest)
+      ..addAll(others);
+    _accounts[demoGuestEmail] = (userId: guest.id, password: demoGuestPassword);
+
+    // Parte das pessoas sintéticas já curtiu o visitante, com chance maior
+    // para quem tem mais afinidade: curtindo de volta, sai um match.
+    final random = math.Random(seed);
+    final now = DateTime.now();
+    for (final person in others) {
+      final affinity = affinityBetween(person, guest).score;
+      if (random.nextDouble() >= 0.1 + 0.7 * affinity) continue;
+      _swipes['${person.id}_${guest.id}'] = Swipe(
+        fromId: person.id,
+        toId: guest.id,
+        decision: SwipeDecision.like,
+        source: SuggestionSource.afinidade,
+        score: affinity,
+        createdAt: now.subtract(const Duration(hours: 1)),
+      );
+    }
+    _posts.addAll(population.posts(others, now: now));
+  }
 
   void _seed() {
     final demo = User(

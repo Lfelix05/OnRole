@@ -115,6 +115,9 @@ class GeofenceEngine {
   final List<Geofence> _fences;
   final Map<String, _FenceState> _states;
 
+  /// Ids das cercas, na ordem em que foram passadas.
+  Iterable<String> get fenceIds => _fences.map((fence) => fence.id);
+
   FenceStatus statusOf(String fenceId) => _states[fenceId]?.status ?? FenceStatus.outside;
 
   DateTime? enteredAt(String fenceId) => _states[fenceId]?.enteredAt;

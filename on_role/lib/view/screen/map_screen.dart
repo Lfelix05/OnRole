@@ -5,14 +5,14 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
+import '../../app_mode.dart';
 import '../../models/venue.dart';
-import '../../providers/experiment_provider.dart';
+import '../../providers/bench_provider.dart';
 import '../../providers/presence_provider.dart';
 import '../../providers/venues_provider.dart';
 import '../../services/geo.dart';
 import '../../services/location_service.dart';
 import '../../theme/app_theme.dart';
-import '../experiment_screen.dart';
 import '../widgets/heatmap_layer.dart';
 
 class MapScreen extends StatefulWidget {
@@ -60,28 +60,26 @@ class _MapScreenState extends State<MapScreen> {
   final _searchController = TextEditingController();
   String? _selectedVenueId;
   bool _showHeatmap = true;
-  late final ExperimentProvider _experiment;
+
+  /// Só na bancada de testes: mede os quadros do mapa (H4).
+  BenchProvider? _bench;
+  LatLng? _followed;
 
   @override
   void initState() {
     super.initState();
-    // H2/H4: quanto tempo leva para achar um local e quão fluido é o mapa.
-    _experiment = context.read<ExperimentProvider>()
-      ..log('map_open')
-      ..startFrameSampling('map');
+    if (appMode.hasBench) _bench = context.read<BenchProvider>()..startFrameSampling();
   }
 
   @override
   void dispose() {
-    _experiment.stopFrameSampling();
+    _bench?.stopFrameSampling();
     _mapController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  /// [source]: de onde veio a escolha (pin, search ou card).
-  void _focusVenue(Venue venue, String source) {
-    _experiment.log('venue_select', {'venueId': venue.id, 'source': source});
+  void _focusVenue(Venue venue) {
     FocusScope.of(context).unfocus();
     _searchController.clear();
     setState(() => _selectedVenueId = venue.id);
@@ -113,7 +111,7 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     final venuesProvider = context.watch<VenuesProvider>();
     final presence = context.watch<PresenceProvider>();
-    final enrolled = context.select<ExperimentProvider, bool>((experiment) => experiment.isEnrolled);
+    final benchRunning = appMode.hasBench && context.select<BenchProvider, bool>((bench) => bench.isRunning);
     final venues = venuesProvider.venues;
     final selectedVenue = venuesProvider.venueById(_selectedVenueId);
     final checkedInVenue = presence.checkedInVenue;
@@ -121,6 +119,15 @@ class _MapScreenState extends State<MapScreen> {
     final userPosition = presence.position;
     final userAccuracy = presence.accuracyMeters;
     final searchResults = venuesProvider.search(_searchController.text);
+
+    // Na rodada de desempenho, o mapa acompanha o trajeto sintético, como
+    // alguém andando com o app aberto.
+    if (benchRunning && userPosition != null && userPosition != _followed) {
+      _followed = userPosition;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _mapController.move(userPosition, 16);
+      });
+    }
 
     // A cerca só aparece no local selecionado e onde o usuário está, para não
     // poluir o mapa.
@@ -205,7 +212,7 @@ class _MapScreenState extends State<MapScreen> {
                         count: venuesProvider.crowdAt(venue.id),
                         selected: venue == selectedVenue,
                         checkedIn: venue == checkedInVenue,
-                        onTap: () => _focusVenue(venue, 'pin'),
+                        onTap: () => _focusVenue(venue),
                       ),
                     ),
                 ],
@@ -223,7 +230,7 @@ class _MapScreenState extends State<MapScreen> {
                     _SearchResults(
                       venues: searchResults,
                       crowdAt: venuesProvider.crowdAt,
-                      onSelected: (venue) => _focusVenue(venue, 'search'),
+                      onSelected: (venue) => _focusVenue(venue),
                     )
                   else if (_searchController.text.trim().isNotEmpty)
                     const _SearchEmpty(),
@@ -247,15 +254,8 @@ class _MapScreenState extends State<MapScreen> {
                     const Spacer(),
                     Column(
                       children: [
-                        if (enrolled) ...[
-                          _MapButton(
-                            icon: Icons.edit_note,
-                            tooltip: 'Diário de campo',
-                            onPressed: () => showFieldDiary(context),
-                          ),
-                          const SizedBox(height: 10),
-                        ],
-                        if (PresenceProvider.simulationAvailable) ...[
+                        // Na demonstração a simulação está sempre ligada.
+                        if (presence.simulationAvailable && presence.gpsEnabled) ...[
                           _MapButton(
                             icon: Icons.science_outlined,
                             tooltip: 'Modo simulação',
@@ -289,7 +289,7 @@ class _MapScreenState extends State<MapScreen> {
                     distance: presence.distanceTo(cardVenue),
                     isHottestHighlight: selectedVenue == null,
                     checkedIn: cardVenue == checkedInVenue,
-                    onTap: () => _focusVenue(cardVenue, 'card'),
+                    onTap: () => _focusVenue(cardVenue),
                   ),
                 ],
               ],
@@ -440,7 +440,7 @@ class _StatusBanner extends StatelessWidget {
         message: message,
         actions: [
           TextButton(onPressed: action, child: Text(actionLabel)),
-          if (PresenceProvider.simulationAvailable)
+          if (presence.simulationAvailable)
             TextButton(onPressed: () => presence.setSimulating(true), child: const Text('Simular')),
         ],
       );
@@ -464,12 +464,13 @@ class _StatusBanner extends StatelessWidget {
     }
 
     if (presence.isSimulating) {
+      final label = presence.gpsEnabled ? 'Simulação' : 'Demonstração';
       return _Banner(
         icon: Icons.touch_app_outlined,
         color: AppColors.warning,
         message: presence.position == null
-            ? 'Simulação: toque no mapa para definir sua posição.'
-            : 'Simulação: toque no mapa para mover sua posição.',
+            ? '$label: toque no mapa para dizer onde você está.'
+            : '$label: toque no mapa para mudar de lugar.',
       );
     }
 

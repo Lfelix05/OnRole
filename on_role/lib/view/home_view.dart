@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:on_role/view/screen/feed_screen.dart';
 import 'package:on_role/view/screen/map_screen.dart';
-// import 'package:on_role/view/screen/match_screen.dart';
+import 'package:on_role/view/screen/match_screen.dart';
 import 'package:on_role/view/screen/profile_screen.dart';
 import 'package:on_role/view/screen/search_screen.dart';
 import 'package:provider/provider.dart';
 
+import '../app_mode.dart';
 import '../providers/auth_provider.dart';
 import '../providers/presence_provider.dart';
 
@@ -28,16 +29,15 @@ class _HomeViewState extends State<HomeView> {
     if (userId != null) context.read<PresenceProvider>().start(userId: userId);
   }
 
-  // Match geossocial (aba "Conexões" estilo Tinder) pausado até a retomada:
-  // a tela, o MatchProvider (main.dart) e os repositórios continuam no
-  // projeto, só fora da navegação. Por enquanto, "conexões" é seguir alguém
-  // pelo perfil (FollowProvider).
-  List<Widget> get _pages => const <Widget>[
-    FeedScreen(),
-    MapScreen(),
-    // MatchScreen(),
-    SearchScreen(),
-    ProfileScreen(),
+  // Match geossocial (aba "Conexões" estilo Tinder): só na versão de
+  // demonstração, com pessoas sintéticas, para a avaliação da H3. No app
+  // completo, "conexões" é seguir alguém pelo perfil (FollowProvider).
+  List<Widget> get _pages => <Widget>[
+    const FeedScreen(),
+    const MapScreen(),
+    if (appMode.isDemo) const MatchScreen(),
+    const SearchScreen(),
+    const ProfileScreen(),
   ];
 
   @override
@@ -51,16 +51,17 @@ class _HomeViewState extends State<HomeView> {
             _currentIndex = index;
           });
         },
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Início'),
-          BottomNavigationBarItem(icon: Icon(Icons.gps_fixed), label: 'Mapa'),
-          // BottomNavigationBarItem(
-          //   icon: Icon(Icons.favorite_border),
-          //   activeIcon: Icon(Icons.favorite),
-          //   label: 'Conexões',
-          // ),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Procurar'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
+        items: <BottomNavigationBarItem>[
+          const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Início'),
+          const BottomNavigationBarItem(icon: Icon(Icons.gps_fixed), label: 'Mapa'),
+          if (appMode.isDemo)
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.favorite_border),
+              activeIcon: Icon(Icons.favorite),
+              label: 'Conexões',
+            ),
+          const BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Procurar'),
+          const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
         ],
       ),
     );

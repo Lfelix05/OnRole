@@ -62,10 +62,10 @@ service cloud.firestore {
           || validPhoto(request.resource.data.photo));
       allow delete: if false;
 
-      // Dados que só o dono vê (e-mail, data de nascimento, consentimento do
-      // experimento).
+      // Dados que só o dono vê (e-mail e data de nascimento). Só o documento
+      // "account": o antigo consentimento do experimento não existe mais.
       match /private/{docId} {
-        allow read, write: if isSelf(uid);
+        allow read, write: if isSelf(uid) && docId == 'account';
       }
 
       // Histórico de check-ins: só o dono.
@@ -276,19 +276,8 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Experimento de campo: lotes de eventos pseudônimos, sem coordenadas.
-    // Só o participante envia, lê e apaga; a exportação usa o Admin SDK.
-    match /telemetry/{uid}/batches/{batchId} {
-      allow read, delete: if isSelf(uid);
-      allow create: if isSelf(uid)
-        && request.resource.data.keys().hasAll(['events', 'count', 'createdAt'])
-        && request.resource.data.keys().hasOnly(['events', 'count', 'createdAt'])
-        && request.resource.data.events is list
-        && request.resource.data.events.size() > 0
-        && request.resource.data.events.size() <= 500
-        && request.resource.data.count == request.resource.data.events.size()
-        && request.resource.data.createdAt == request.time;
-      allow update: if false;
-    }
+    // A antiga coleta do experimento de campo (telemetry/) foi desativada:
+    // sem regra, ninguém lê nem grava. O experimento usa dados sintéticos e
+    // uma versão de demonstração sem conta (ver README).
   }
 }

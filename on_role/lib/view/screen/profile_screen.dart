@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../app_mode.dart';
 import '../../models/posts.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/experiment_provider.dart';
 import '../../providers/follow_provider.dart';
 import '../../providers/posts_provider.dart';
 import '../../providers/presence_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_widgets.dart';
+import '../bench_screen.dart';
 import '../connections_screen.dart';
 import '../edit_profile_screen.dart';
-import '../experiment_screen.dart';
 import '../widgets/profile_widgets.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -48,7 +48,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    final enrolled = context.watch<ExperimentProvider>().isEnrolled;
     final follows = context.watch<FollowProvider>();
 
     return Scaffold(
@@ -75,14 +74,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: ProfileHeader(
                             user: user,
                             actions: [
-                              CoverButton(
-                                tooltip: 'Experimento do TCC',
-                                icon: enrolled
-                                    ? Icons.science
-                                    : Icons.science_outlined,
-                                highlighted: enrolled,
-                                onPressed: () => ExperimentScreen.open(context),
-                              ),
+                              if (appMode.hasBench)
+                                CoverButton(
+                                  tooltip: 'Bancada de testes',
+                                  icon: Icons.science_outlined,
+                                  onPressed: () => BenchScreen.open(context),
+                                ),
                               CoverButton(
                                 tooltip: 'Sair',
                                 icon: Icons.logout,
@@ -90,10 +87,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ],
                             badges: [
-                              if (enrolled)
+                              if (appMode.isDemo)
                                 const ProfileBadge(
-                                  icon: Icons.science,
-                                  label: 'Participando do experimento',
+                                  icon: Icons.visibility_outlined,
+                                  label: 'Demonstração · dados fictícios',
                                 ),
                             ],
                           ),

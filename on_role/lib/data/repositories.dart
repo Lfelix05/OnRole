@@ -95,20 +95,6 @@ abstract class MatchRepository {
   Stream<List<UserMatch>> watchMatches(String userId);
 }
 
-/// Dados do experimento de campo (seção 5C do projeto), só de quem aceitou
-/// participar. Nada aqui guarda coordenadas.
-abstract class ExperimentRepository {
-  Future<bool> isEnrolled(String userId);
-
-  Future<void> setEnrolled(String userId, bool enrolled);
-
-  /// Envia um lote de eventos (cada um com 't' em ms e 'type').
-  Future<void> upload(String userId, List<Map<String, Object?>> events);
-
-  /// Apaga tudo o que a pessoa enviou (direito de sair do experimento).
-  Future<void> deleteAll(String userId);
-}
-
 abstract class PresenceRepository {
   /// Registra o check-in: presença atual, histórico e contagem de visitas.
   Future<void> checkIn(CheckIn checkIn);
@@ -214,7 +200,6 @@ class Repositories {
     required this.media,
     required this.follows,
     required this.matches,
-    required this.experiment,
   });
 
   final AuthRepository auth;
@@ -225,7 +210,7 @@ class Repositories {
   final MediaRepository media;
   final FollowRepository follows;
 
-  /// Match geossocial: fora da navegação por enquanto (ver home_view.dart).
+  /// Match geossocial: só na versão de demonstração por enquanto (ver
+  /// home_view.dart).
   final MatchRepository matches;
-  final ExperimentRepository experiment;
 }

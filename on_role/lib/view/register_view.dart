@@ -6,7 +6,6 @@ import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_widgets.dart';
 import 'edit_profile_screen.dart';
-import 'experiment_screen.dart';
 
 class RegisterView extends StatefulWidget {
   const RegisterView({super.key});
@@ -91,12 +90,8 @@ class _RegisterViewState extends State<RegisterView> {
     final warning = result.warning;
     if (warning != null) messenger.showSnackBar(SnackBar(content: Text(warning)));
 
-    // Com a sessão aberta, a raiz (AuthGate) já mostra o início. O convite
-    // para o experimento abre depois de voltar à raiz: aberto antes, o
-    // popUntil o fecharia junto com esta tela.
-    final navigator = Navigator.of(context);
-    navigator.popUntil((route) => route.isFirst);
-    inviteToExperiment(navigator.context);
+    // Com a sessão aberta, a raiz (AuthGate) já mostra o início.
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override

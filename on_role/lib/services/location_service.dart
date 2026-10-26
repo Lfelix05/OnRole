@@ -114,5 +114,8 @@ class SimulatedLocationService implements LocationService {
     ));
   }
 
+  /// Repassa uma leitura pronta (ex.: de um trajeto sintético).
+  void add(LocationFix fix) => _controller.add(fix);
+
   void dispose() => _controller.close();
 }

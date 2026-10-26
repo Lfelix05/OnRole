@@ -11,10 +11,11 @@ import 'mock_database.dart';
 import 'mock_match_repositories.dart';
 import 'mock_social_repositories.dart';
 
-/// Repositórios em memória, com a lotação dos locais simulada.
+/// Repositórios em memória, com a lotação dos locais simulada ([simulator]:
+/// a versão de demonstração usa a [SyntheticCrowd]).
 Repositories createMockRepositories({
   MockDatabase? database,
-  CrowdSimulator? simulator,
+  CrowdSource? simulator,
 }) {
   final db = database ?? MockDatabase();
   return Repositories(
@@ -29,7 +30,6 @@ Repositories createMockRepositories({
     media: MockMediaRepository(db),
     follows: MockFollowRepository(db),
     matches: MockMatchRepository(db),
-    experiment: MockExperimentRepository(db),
   );
 }
 
@@ -108,12 +108,12 @@ class MockUserRepository implements UserRepository {
 class MockPresenceRepository implements PresenceRepository {
   MockPresenceRepository(
     this._db, {
-    required CrowdSimulator simulator,
+    required CrowdSource simulator,
     this.tick = const Duration(seconds: 5),
   }) : _simulator = simulator;
 
   final MockDatabase _db;
-  final CrowdSimulator _simulator;
+  final CrowdSource _simulator;
 
   /// Intervalo de atualização da lotação simulada.
   final Duration tick;

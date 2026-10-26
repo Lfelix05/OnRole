@@ -1,15 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../../models/match.dart';
 import '../repositories.dart';
 
-// Match geossocial e dados do experimento no Cloud Firestore:
+// Match geossocial no Cloud Firestore:
 //
 //   swipes/{de}_{para}           from, to, decision, source, score, createdAt
 //   matches/{a}_{b}              users [a, b] (em ordem), createdAt
-//   telemetry/{uid}/batches/{id} events[], count, createdAt
-//   users/{uid}/private/experiment   enrolled, updatedAt
 //
 // Cada pessoa só lê as próprias decisões e, uma a uma, as curtidas que
 // recebeu: é o que confirma um match sem expor quem passou.
@@ -116,60 +113,4 @@ class FirebaseMatchRepository implements MatchRepository {
 
   static UserMatch _match(String id, List<String> userIds) =>
       UserMatch(id: id, userIds: userIds, createdAt: DateTime.now());
-}
-
-class FirebaseExperimentRepository implements ExperimentRepository {
-  FirebaseExperimentRepository(this._db);
-
-  final FirebaseFirestore _db;
-
-  DocumentReference<Map<String, dynamic>> _consent(String userId) => _db
-      .collection('users')
-      .doc(userId)
-      .collection('private')
-      .doc('experiment');
-
-  CollectionReference<Map<String, dynamic>> _batches(String userId) =>
-      _db.collection('telemetry').doc(userId).collection('batches');
-
-  @override
-  Future<bool> isEnrolled(String userId) async {
-    final doc = await _consent(userId).get();
-    return doc.data()?['enrolled'] == true;
-  }
-
-  @override
-  Future<void> setEnrolled(String userId, bool enrolled) {
-    return _consent(
-      userId,
-    ).set({'enrolled': enrolled, 'updatedAt': FieldValue.serverTimestamp()});
-  }
-
-  @override
-  Future<void> upload(String userId, List<Map<String, Object?>> events) async {
-    // Sem esperar o servidor: offline (bar sem sinal), o Firestore guarda o
-    // lote no aparelho e envia quando a conexão voltar.
-    _batches(userId)
-        .add({
-          'events': events,
-          'count': events.length,
-          'createdAt': FieldValue.serverTimestamp(),
-        })
-        .then<void>(
-          (_) {},
-          onError: (Object error) => debugPrint('Experimento: $error'),
-        );
-  }
-
-  @override
-  Future<void> deleteAll(String userId) async {
-    final snapshot = await _batches(userId).get();
-    for (var start = 0; start < snapshot.docs.length; start += 400) {
-      final batch = _db.batch();
-      for (final doc in snapshot.docs.skip(start).take(400)) {
-        batch.delete(doc.reference);
-      }
-      await batch.commit();
-    }
-  }
 }

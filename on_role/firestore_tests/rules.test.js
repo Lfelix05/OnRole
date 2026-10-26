@@ -513,44 +513,17 @@ describe('conexões (match, pausado no app)', () => {
   });
 });
 
-describe('experimento de campo', () => {
-  const events = [
-    { t: 1, type: 'session' },
-    { t: 2, type: 'battery', level: 80 },
-  ];
-  const batch = (overrides = {}) => ({ events, count: events.length, createdAt: serverTimestamp(), ...overrides });
-
-  test('o participante envia, lê e apaga os próprios lotes', async () => {
-    const db = as('ana');
-    const ref = await assertSucceeds(addDoc(collection(db, 'telemetry/ana/batches'), batch()));
-    await assertSucceeds(getDocs(collection(db, 'telemetry/ana/batches')));
-    await assertSucceeds(deleteDoc(ref));
+describe('coleta do experimento desativada', () => {
+  test('ninguém grava nem lê eventos de telemetria, nem os próprios', async () => {
+    const batch = { events: [{ t: 1, type: 'session' }], count: 1, createdAt: serverTimestamp() };
+    await assertFails(addDoc(collection(as('ana'), 'telemetry/ana/batches'), batch));
+    await assertFails(getDocs(collection(as('ana'), 'telemetry/ana/batches')));
   });
 
-  test('ninguém envia nem lê lotes de outra pessoa', async () => {
-    await seed((db) => setDoc(doc(db, 'telemetry/ana/batches/b1'), { ...batch(), createdAt: Timestamp.now() }));
-    await assertFails(addDoc(collection(as('bia'), 'telemetry/ana/batches'), batch()));
-    await assertFails(getDocs(collection(as('bia'), 'telemetry/ana/batches')));
-    await assertFails(deleteDoc(doc(as('bia'), 'telemetry/ana/batches/b1')));
-  });
-
-  test('lote vazio, grande demais, com contagem errada ou campos extras é recusado', async () => {
-    const batches = collection(as('ana'), 'telemetry/ana/batches');
-    await assertFails(addDoc(batches, batch({ events: [], count: 0 })));
-    const many = Array.from({ length: 501 }, (_, t) => ({ t, type: 'gps' }));
-    await assertFails(addDoc(batches, batch({ events: many, count: many.length })));
-    await assertFails(addDoc(batches, batch({ count: 99 })));
-    await assertFails(addDoc(batches, batch({ uid: 'ana' })));
-  });
-
-  test('lotes enviados não são alterados', async () => {
-    await seed((db) => setDoc(doc(db, 'telemetry/ana/batches/b1'), { ...batch(), createdAt: Timestamp.now() }));
-    await assertFails(updateDoc(doc(as('ana'), 'telemetry/ana/batches/b1'), { count: 1 }));
-  });
-
-  test('o consentimento fica nos dados privados do dono', async () => {
-    const consent = { enrolled: true, updatedAt: serverTimestamp() };
-    await assertSucceeds(setDoc(doc(as('ana'), 'users/ana/private/experiment'), consent));
-    await assertFails(getDoc(doc(as('bia'), 'users/ana/private/experiment')));
+  test('os dados privados aceitam só o documento da conta', async () => {
+    await assertSucceeds(setDoc(doc(as('ana'), 'users/ana/private/account'), { email: 'ana@exemplo.com' }));
+    await assertFails(setDoc(doc(as('ana'), 'users/ana/private/experiment'), { enrolled: true }));
+    await assertFails(getDoc(doc(as('ana'), 'users/ana/private/experiment')));
+    await assertFails(getDoc(doc(as('bia'), 'users/ana/private/account')));
   });
 });

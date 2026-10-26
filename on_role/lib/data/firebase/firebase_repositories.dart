@@ -34,7 +34,6 @@ Repositories createFirebaseRepositories() {
     media: FirebaseMediaRepository(db),
     follows: FirebaseFollowRepository(db),
     matches: FirebaseMatchRepository(db),
-    experiment: FirebaseExperimentRepository(db),
   );
 }
 
