@@ -48,7 +48,9 @@ dart run tools/geofence_bench.dart --nights 1000 --seed 1
 dart run tools/geofence_bench.dart --nights 1000 --seed 1 --dwell 300   # análise de sensibilidade
 ```
 
-Rode com 3 a 5 sementes e relate média e desvio entre elas. **Limitação a
+Rode com 3 a 5 sementes e relate média e desvio entre elas (`--seeds 5`). O
+resultado atual, com o ajuste de parâmetros que ele motivou, está em
+[resultados_bancada.md](resultados_bancada.md). **Limitação a
 declarar no TCC:** o resultado vale para o modelo de GPS e de caminhada
 acima, que é uma aproximação. Ele mede a lógica das geocercas, não o GPS de um
 aparelho específico.
@@ -111,6 +113,13 @@ flutter build apk --release --dart-define=MODE=demo
 
 ### Questionário (Google Forms)
 
+O script [questionario_forms.gs](questionario_forms.gs) cria o formulário
+inteiro, com as perguntas abaixo e as configurações já aplicadas. Abra
+script.google.com, crie um projeto novo, cole o arquivo, troque `CONTATO` pelo
+seu e-mail institucional e execute `criarQuestionario`. O registro de execução
+mostra o link de edição, para revisar com o orientador, e o link de resposta,
+para os participantes.
+
 **Configurações obrigatórias do formulário:**
 
 - Configurações → Respostas → **Coletar endereços de e-mail: Não coletar**.
@@ -131,7 +140,7 @@ flutter build apk --release --dart-define=MODE=demo
 > Você está sendo convidado(a) a responder este questionário, que faz parte
 > do Trabalho de Conclusão de Curso de Lucas Lemes Félix, do curso de Sistemas
 > de Informação do Centro Universitário do Espírito Santo (UNESC), orientado
-> pelo Prof. Tiago Antonio de Araujo. O objetivo é conhecer sua opinião sobre
+> pelo Prof. Daniel Rossi de Jesus. O objetivo é conhecer sua opinião sobre
 > a versão de demonstração do OnRolê que você usou.
 >
 > - A participação é voluntária e sem nenhum pagamento. Você pode desistir a

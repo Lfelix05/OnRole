@@ -73,12 +73,14 @@ O OnRolê é a fusão entre geolocalização e rede social, criada para quem nã
 5. **Demonstração e Conexões:** rode com `--dart-define=MODE=demo` e toque em "Explorar a demonstração". Na aba **Conexões**, arraste a carta para a direita (curtir) ou para a esquerda (passar). Parte das pessoas sintéticas já curtiu o visitante, então curtindo de volta pode sair um match.
 6. **Bancada:** rode com `--dart-define=MODE=bancada` e abra **Perfil → frasco**. Também dá para medir a precisão sem aparelho: `dart run tools/geofence_bench.dart --nights 1000`.
 
-Parâmetros das geocercas (em `GeofenceConfig`; são variáveis do experimento de campo):
+Parâmetros das geocercas (em `GeofenceConfig`), escolhidos na bancada de trajetos sintéticos:
 
-| | Permanência mínima | Confirmação de saída | Histerese | Precisão máxima |
-|---|---|---|---|---|
-| GPS real | 2 min | 60 s | 25 m | 60 m |
-| Simulação | 10 s | 5 s | 15 m | 60 m |
+| | Permanência mínima | Confirmação de saída | Histerese | Detecção de parada | Precisão máxima |
+|---|---|---|---|---|---|
+| GPS real | 3 min | 60 s | 25 m | 30 m | 60 m |
+| Simulação | 10 s | 5 s | 15 m | não | 60 m |
+
+A **detecção de parada** faz a permanência contar só enquanto a pessoa está parada, isto é, com as leituras a até 30 m da média das anteriores. Sem ela, atravessar uma cerca grande andando (ex.: a Área Verde, de 120 m) já fazia check-in.
 
 ## Como executar
 
@@ -121,13 +123,13 @@ O desenho é anônimo, para a pesquisa poder dispensar o registro no Comitê de 
 1. **H2 e H4 (bancada, só o pesquisador):** trajetos e check-ins sintéticos. Precisão com `dart run tools/geofence_bench.dart`, e quadros e bateria com a build `MODE=bancada` (`flutter build apk --release --dart-define=MODE=bancada`).
 2. **H1 e H3 (avaliação de uso):** os voluntários, maiores de 18 anos, usam a build `MODE=demo` (`flutter build apk --release --dart-define=MODE=demo`), sem conta e sem dados pessoais. Depois respondem um questionário anônimo (TAM e utilidade percebida). Feche o app entre um participante e outro.
 3. Divulgue só resultados agregados.
-4. Antes, descarte os dados da antiga coleta de campo com `tools/purge_experiment`.
+4. Os dados da antiga coleta de campo já foram descartados (`tools/purge_experiment`).
 
 ## Observações
 
 - Para imagens, use caminhos relativos e garanta que estejam declaradas no `pubspec.yaml`.
 - Para telas com teclado, prefira conteúdo rolável para evitar overflow.
-- **Locais monitorados:** 11 estabelecimentos reais de Colatina, de acesso público e sem parceria nem patrocínio, em `lib/data/venue_catalog.dart`. O app mostra só nome, tipo e localização. O raio da geocerca segue o tamanho do local: 50 m para pequeno, 75 m para médio e 120 m para grande. Espetinho do Denis e DJ PUB ficam a 44 m um do outro, e o Bharem fica dentro da cerca da Área Verde. Nesses casos o check-in vai para o local mais próximo e troca quando a pessoa passa 2 minutos mais perto do vizinho. Vale conferir no próprio local, antes do teste, se o check-in dispara na porta. A lotação do modo mock é inventada.
+- **Locais monitorados:** 11 estabelecimentos reais de Colatina, de acesso público e sem parceria nem patrocínio, em `lib/data/venue_catalog.dart`. O app mostra só nome, tipo e localização. O raio da geocerca segue o tamanho do local: 50 m para pequeno, 75 m para médio e 120 m para grande. Espetinho do Denis e DJ PUB ficam a 44 m um do outro, e o Bharem fica dentro da cerca da Área Verde. Nesses casos o check-in vai para o local mais próximo em que a pessoa está parada, e troca quando ela passa 3 minutos mais perto do vizinho (por mais de 25 m). Vale conferir no próprio local, antes do teste, se o check-in dispara na porta. A lotação do modo mock é inventada.
 - **Tiles do mapa:** vêm do servidor público do OpenStreetMap, dentro da [política de uso](https://operations.osmfoundation.org/policies/tiles/) (ok para protótipo e teste com poucos usuários). A CARTO passou a exigir chave de API. Para um estilo escuro "de verdade" ou para escalar, troque `_tileUrl` em `map_screen.dart` por um provedor com chave (CARTO, Stadia, MapTiler).
 - **Privacidade (app completo):** coordenadas nunca saem do aparelho. O servidor só conhece o local do check-in, o mapa de calor usa contagens por local (`HeatPoint`), e presenças sem renovação por 15 min deixam de contar. Mesmo assim, local e horário do check-in identificam uma pessoa, e por isso o app completo não é usado no experimento.
 - No app completo, o modo simulação e as posições de apps de "GPS falso" só são aceitos em builds de depuração. Na demonstração, a simulação é a única fonte de posição.
@@ -148,7 +150,7 @@ O desenho é anônimo, para a pesquisa poder dispensar o registro no Comitê de 
 - [x] ~~Coleta de métricas do experimento com participantes~~: trocada pelo desenho anônimo (bancada sintética + demonstração + questionário).
 - [x] Publicar as regras novas do Firestore (`firebase deploy --only firestore`) antes do teste de campo.
 - [x] Trocar os locais de demonstração por estabelecimentos reais de Colatina.
-- [ ] Apagar do Firebase os dados da antiga coleta de campo (`tools/purge_experiment`).
+- [x] Apagar do Firebase os dados da antiga coleta de campo e os check-ins dos testes (`tools/purge_experiment`, feito em 26/10/2026).
 - [ ] Montar o questionário anônimo no Google Forms (texto em `docs/protocolo_experimento.md`).
 - [ ] Rodar a bancada (precisão com várias sementes; quadros e bateria em 2 ou 3 aparelhos).
-- [ ] Ajustar as geocercas pelo resultado da bancada: hoje, atravessar uma cerca grande sem parar (ex.: Área Verde) faz check-in.
+- [x] Ajustar as geocercas pelo resultado da bancada: detecção de parada e 3 min de permanência (transições corretas de 57% para ~94% nos trajetos sintéticos).
