@@ -54,11 +54,11 @@ class _HomeViewState extends State<HomeView> {
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Início'),
           BottomNavigationBarItem(icon: Icon(Icons.gps_fixed), label: 'Mapa'),
-          // BottomNavigationBarItem(
-          //   icon: Icon(Icons.favorite_border),
-          //   activeIcon: Icon(Icons.favorite),
-          //   label: 'Conexões',
-          // ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.favorite_border),
+            activeIcon: Icon(Icons.favorite),
+            label: 'Conexões',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Procurar'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
         ],
