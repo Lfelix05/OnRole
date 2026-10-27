@@ -4,6 +4,7 @@ import 'package:on_role/data/mock/mock_repositories.dart';
 import 'package:on_role/providers/bench_provider.dart';
 import 'package:on_role/providers/presence_provider.dart';
 import 'package:on_role/services/geofence_benchmark.dart';
+import 'package:on_role/services/geofence_engine.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -40,7 +41,7 @@ void main() {
   test('a rodada de desempenho usa os tempos reais e volta aos da demonstração', () async {
     await bench.startPerformance(duration: const Duration(minutes: 30));
     expect(bench.isRunning, isTrue);
-    expect(presence.config.dwellTime, const Duration(minutes: 2));
+    expect(presence.config.dwellTime, const GeofenceConfig().dwellTime);
 
     batteryLevel = 88;
     await bench.stopPerformance();

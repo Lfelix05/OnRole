@@ -28,6 +28,7 @@ void main() {
               const Geofence(id: 'a', center: a, radiusMeters: 50),
               Geofence(id: 'b', center: b, radiusMeters: 50),
             ],
+            config: const GeofenceConfig(dwellTime: Duration(minutes: 2), stillRadiusMeters: null),
           ),
         );
 
@@ -61,6 +62,37 @@ void main() {
       expect(t.checkOut(at(130)), (venueId: 'a', checkedIn: false, at: at(130)));
       expect(t.checkOut(at(140)), isNull);
     });
+  });
+
+  test('sair de um bar dentro de uma praça faz check-in na praça depois de parar', () {
+    // Como o Bharem dentro da cerca da Área Verde: a pessoa sai do bar e vai
+    // ao centro da praça sem nunca sair da cerca dela.
+    const praca = LatLng(-19.5276, -40.6195);
+    final bar = const Distance().offset(praca, 100, 0);
+    final t = CheckInTracker(
+      GeofenceEngine(fences: [
+        const Geofence(id: 'praca', center: praca, radiusMeters: 120),
+        Geofence(id: 'bar', center: bar, radiusMeters: 50),
+      ]),
+    );
+    final changes = <CheckInChange>[];
+    void run(LatLng position, int from, int to) {
+      for (var s = from; s < to; s += 10) {
+        changes
+          ..addAll(t.process(LocationFix(position: position, accuracyMeters: 5, timestamp: at(s))).changes)
+          ..addAll(t.tick(at(s)).changes);
+      }
+    }
+
+    run(bar, 0, 600);
+    expect(t.venueId, 'bar');
+    run(praca, 600, 1200);
+    expect(t.venueId, 'praca');
+    expect(changes.map((change) => (change.venueId, change.checkedIn)), [
+      ('bar', true),
+      ('bar', false),
+      ('praca', true),
+    ]);
   });
 
   group('trajetos sintéticos', () {

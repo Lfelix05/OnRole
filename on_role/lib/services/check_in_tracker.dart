@@ -14,10 +14,11 @@ typedef TrackerStep = ({List<GeofenceEvent> events, List<CheckInChange> changes}
 ///
 /// Regras:
 /// - sem check-in, a permanência confirmada (dwell) num local faz o check-in;
-///   com várias cercas em permanência, vai para o local mais próximo;
+///   com várias cercas em permanência, vai para o local mais próximo em que a
+///   pessoa está parada (ver [GeofenceEngine.isSettled]);
 /// - a saída confirmada (exit) do local atual faz o check-out;
-/// - permanência confirmada num local mais perto que o atual troca o
-///   check-in, e o [CheckInSwitcher] cobre quem anda de um vizinho ao outro
+/// - permanência confirmada num local mais perto que o atual (por mais que a
+///   histerese) troca o check-in, e o [CheckInSwitcher] cobre quem anda de um vizinho ao outro
 ///   sem sair da primeira cerca.
 class CheckInTracker {
   CheckInTracker(this.engine)
@@ -36,8 +37,7 @@ class CheckInTracker {
   TrackerStep process(LocationFix fix) {
     final changes = <CheckInChange>[];
     final events = engine.process(fix);
-    _apply(events, changes);
-    _followCloserVenue(fix.timestamp, changes);
+    _apply(events, fix.timestamp, changes);
     return (events: events, changes: changes);
   }
 
@@ -45,8 +45,7 @@ class CheckInTracker {
   TrackerStep tick(DateTime now) {
     final changes = <CheckInChange>[];
     final events = engine.tick(now);
-    _apply(events, changes);
-    _followCloserVenue(now, changes);
+    _apply(events, now, changes);
     return (events: events, changes: changes);
   }
 
@@ -57,8 +56,7 @@ class CheckInTracker {
     return changes.isEmpty ? null : changes.single;
   }
 
-  void _apply(List<GeofenceEvent> events, List<CheckInChange> changes) {
-    if (events.isEmpty) return;
+  void _apply(List<GeofenceEvent> events, DateTime now, List<CheckInChange> changes) {
     for (final event in events) {
       if (event.transition == GeofenceTransition.exit && event.fenceId == _venueId) {
         _checkOut(event.timestamp, changes);
@@ -67,8 +65,11 @@ class CheckInTracker {
 
     final active = _venueId;
     if (active == null) {
-      final venueId = _nearestDwellingVenueId();
-      if (venueId != null) _checkIn(venueId, events.last.timestamp, changes);
+      // A cada passo, e não só quando há transição: quem sai do Bharem para a
+      // Área Verde nunca sai da cerca dela, e ela só fica assentada minutos
+      // depois, sem evento novo.
+      final venueId = _nearestSettledVenueId(now);
+      if (venueId != null) _checkIn(venueId, now, changes);
       return;
     }
 
@@ -76,7 +77,9 @@ class CheckInTracker {
     var closestDistance = engine.lastDistanceTo(active) ?? double.infinity;
     for (final event in events) {
       if (event.transition != GeofenceTransition.dwell || event.fenceId == active) continue;
-      if (event.distanceMeters < closestDistance) {
+      // A mesma margem do CheckInSwitcher: sem ela, o GPS oscilando entre
+      // dois vizinhos trocaria o check-in a cada nova permanência.
+      if (event.distanceMeters + engine.config.exitHysteresisMeters < closestDistance) {
         closer = event;
         closestDistance = event.distanceMeters;
       }
@@ -84,7 +87,9 @@ class CheckInTracker {
     if (closer != null) {
       _checkOut(closer.timestamp, changes);
       _checkIn(closer.fenceId, closer.timestamp, changes);
+      return;
     }
+    _followCloserVenue(now, changes);
   }
 
   void _followCloserVenue(DateTime now, List<CheckInChange> changes) {
@@ -94,8 +99,7 @@ class CheckInTracker {
       currentDistance: engine.lastDistanceTo(active) ?? double.infinity,
       others: {
         for (final id in engine.fenceIds)
-          if (id != active && engine.statusOf(id) == FenceStatus.dwelling)
-            id: engine.lastDistanceTo(id) ?? double.infinity,
+          if (id != active && engine.isSettled(id, now)) id: engine.lastDistanceTo(id) ?? double.infinity,
       },
       now: now,
     );
@@ -104,11 +108,14 @@ class CheckInTracker {
     _checkIn(target, now, changes);
   }
 
-  String? _nearestDwellingVenueId() {
+  /// Ao sair de um local, a cerca vizinha pode continuar em permanência (ex.:
+  /// quem estava no Bharem também estava dentro da cerca da Área Verde). Só
+  /// conta se a pessoa está parada ali (ver [GeofenceEngine.isSettled]).
+  String? _nearestSettledVenueId(DateTime now) {
     String? nearest;
     var nearestDistance = double.infinity;
     for (final id in engine.fenceIds) {
-      if (engine.statusOf(id) != FenceStatus.dwelling) continue;
+      if (!engine.isSettled(id, now)) continue;
       final distance = engine.lastDistanceTo(id) ?? double.infinity;
       if (nearest == null || distance < nearestDistance) {
         nearest = id;

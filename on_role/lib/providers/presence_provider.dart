@@ -81,7 +81,7 @@ class PresenceProvider extends ChangeNotifier {
       final distance = engine.lastDistanceTo(venue.id) ?? double.infinity;
       if (distance >= nearestDistance) continue;
 
-      final elapsed = DateTime.now().difference(engine.enteredAt(venue.id)!);
+      final elapsed = DateTime.now().difference(engine.dwellStartedAt(venue.id)!);
       final progress = elapsed.inMilliseconds / engine.config.dwellTime.inMilliseconds;
       nearest = (venue: venue, progress: progress.clamp(0.0, 1.0));
       nearestDistance = distance;

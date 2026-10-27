@@ -22,7 +22,13 @@ void main() {
   }) {
     return GeofenceEngine(
       fences: const [Geofence(id: 'bar', center: center, radiusMeters: 50)],
-      config: GeofenceConfig(dwellTime: dwellTime, exitDelay: exitDelay, exitHysteresisMeters: 25),
+      // Sem detecção de parada: estes testes olham só os tempos da máquina.
+      config: GeofenceConfig(
+        dwellTime: dwellTime,
+        exitDelay: exitDelay,
+        exitHysteresisMeters: 25,
+        stillRadiusMeters: null,
+      ),
     );
   }
 
@@ -114,7 +120,7 @@ void main() {
     // Espetinho do Denis e DJ PUB, a 44 m um do outro.
     const espetinho = LatLng(-19.529800, -40.661999);
     const djPub = LatLng(-19.530143, -40.661782);
-    const config = GeofenceConfig();
+    const config = GeofenceConfig(dwellTime: Duration(minutes: 2), stillRadiusMeters: null);
 
     LocationFix at(LatLng position, Duration elapsed) =>
         LocationFix(position: position, accuracyMeters: 10, timestamp: start.add(elapsed));
@@ -208,6 +214,62 @@ void main() {
         ),
         'bunker',
       );
+    });
+  });
+
+  group('detecção de parada', () {
+    GeofenceEngine still() => GeofenceEngine(
+          fences: const [Geofence(id: 'praca', center: center, radiusMeters: 120)],
+          config: const GeofenceConfig(dwellTime: Duration(minutes: 2), stillRadiusMeters: 30),
+        );
+
+    test('atravessar a cerca andando não confirma a permanência', () {
+      final geofences = still();
+      final events = <GeofenceEvent>[];
+      // 1,2 m/s de norte a sul, passando pelo centro: ~200 s dentro da cerca.
+      for (var s = 0; s <= 300; s += 10) {
+        events
+          ..addAll(geofences.process(fix(180 - 1.2 * s, Duration(seconds: s))))
+          ..addAll(geofences.tick(start.add(Duration(seconds: s))));
+      }
+      expect(transitions(events), isNot(contains(GeofenceTransition.dwell)));
+    });
+
+    test('a permanência conta de quando a pessoa parou', () {
+      final geofences = still();
+      // Entra a 100 m correndo (40 m a cada leitura) e para no centro. A
+      // parada é reconhecida na segunda leitura seguida longe da média (20 s).
+      for (final (s, meters) in [(0, 100.0), (10, 60.0), (20, 20.0), (30, 0.0), (40, 2.0)]) {
+        geofences.process(fix(meters, Duration(seconds: s)));
+      }
+      expect(geofences.enteredAt('praca'), start);
+      expect(geofences.dwellStartedAt('praca'), start.add(const Duration(seconds: 20)));
+      expect(geofences.tick(start.add(const Duration(seconds: 139))), isEmpty);
+      expect(
+        transitions(geofences.tick(start.add(const Duration(seconds: 141)))),
+        [GeofenceTransition.dwell],
+      );
+      expect(geofences.isSettled('praca', start.add(const Duration(seconds: 141))), isTrue);
+    });
+
+    test('uma leitura solta longe da média não recomeça a parada', () {
+      final geofences = still();
+      geofences.process(fix(0, Duration.zero));
+      geofences.process(fix(5, const Duration(seconds: 10)));
+      geofences.process(fix(60, const Duration(seconds: 20))); // reflexo
+      geofences.process(fix(3, const Duration(seconds: 30)));
+      expect(geofences.dwellStartedAt('praca'), start);
+    });
+
+    test('quem sai andando deixa de estar assentado na cerca', () {
+      final geofences = still();
+      geofences.process(fix(0, Duration.zero));
+      geofences.tick(start.add(const Duration(minutes: 3)));
+      expect(geofences.isSettled('praca', start.add(const Duration(minutes: 3))), isTrue);
+      geofences.process(fix(40, const Duration(minutes: 3, seconds: 30)));
+      geofences.process(fix(80, const Duration(minutes: 3, seconds: 60)));
+      expect(geofences.statusOf('praca'), FenceStatus.dwelling);
+      expect(geofences.isSettled('praca', start.add(const Duration(minutes: 4))), isFalse);
     });
   });
 }
