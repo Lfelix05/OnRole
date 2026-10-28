@@ -4,6 +4,7 @@ import 'package:flutter/painting.dart' show decodeImageFromList;
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 
+import '../app_mode.dart';
 import '../data/repositories.dart';
 import '../models/media.dart';
 import 'video_source.dart';
@@ -22,6 +23,7 @@ const _imageQuality = 72;
 /// Abre a galeria (fotos e vídeos). Lança [MediaException] para arquivos que
 /// não cabem nos limites.
 Future<List<MediaDraft>> pickFromGallery({int limit = maxPostMedia}) async {
+  if (!appMode.allowsMedia) return const [];
   final picker = ImagePicker();
   final List<XFile> files;
   if (limit <= 1) {
@@ -44,6 +46,7 @@ Future<List<MediaDraft>> pickFromGallery({int limit = maxPostMedia}) async {
 
 /// Foto de perfil, da câmera do sistema ou da galeria. Null se cancelar.
 Future<MediaDraft?> pickProfilePhoto(ImageSource source) async {
+  if (!appMode.allowsMedia) return null;
   final file = await ImagePicker().pickImage(
     source: source,
     maxWidth: 1080,

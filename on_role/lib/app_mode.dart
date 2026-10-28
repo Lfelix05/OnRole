@@ -17,6 +17,12 @@ enum AppMode {
   bool get isDemo => this != full;
 
   bool get hasBench => this == bench;
+
+  /// Câmera e galeria. Na demonstração ficam desligadas: uma foto ou vídeo
+  /// do participante identificaria a pessoa e ficaria no cache do aparelho
+  /// mesmo depois de o app fechar, e a galeria mostraria as fotos do dono
+  /// do aparelho.
+  bool get allowsMedia => this == full;
 }
 
 const _mode = String.fromEnvironment('MODE');

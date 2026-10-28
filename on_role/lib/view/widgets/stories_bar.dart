@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../app_mode.dart';
 import '../../models/story.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/stories_provider.dart';
@@ -41,20 +42,23 @@ class StoriesBar extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         children: [
-          _StoryBubble(
-            label: 'Seu story',
-            userId: me?.id ?? '',
-            name: me?.name ?? '?',
-            ring: mineIndex == -1
-                ? _Ring.none
-                : stories.hasUnseen(groups[mineIndex])
-                ? _Ring.unseen
-                : _Ring.seen,
-            onTap: mineIndex == -1
-                ? () => createStory(context)
-                : () => _openViewer(context, groups, mineIndex),
-            onAdd: () => createStory(context),
-          ),
+          // Story é sempre foto ou vídeo, que a demonstração não permite
+          // (ver AppMode.allowsMedia).
+          if (appMode.allowsMedia)
+            _StoryBubble(
+              label: 'Seu story',
+              userId: me?.id ?? '',
+              name: me?.name ?? '?',
+              ring: mineIndex == -1
+                  ? _Ring.none
+                  : stories.hasUnseen(groups[mineIndex])
+                  ? _Ring.unseen
+                  : _Ring.seen,
+              onTap: mineIndex == -1
+                  ? () => createStory(context)
+                  : () => _openViewer(context, groups, mineIndex),
+              onAdd: () => createStory(context),
+            ),
           for (var i = 0; i < groups.length; i++)
             if (i != mineIndex)
               _StoryBubble(

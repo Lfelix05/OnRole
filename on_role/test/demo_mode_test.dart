@@ -48,6 +48,16 @@ void main() {
       await _pumpFrames(tester);
       expect(find.text('Demonstração · dados fictícios'), findsOneWidget);
       expect(find.byTooltip('Bancada de testes'), appMode.hasBench ? findsOneWidget : findsNothing);
+
+      // Sem câmera nem galeria: nada de story, e o post é só texto.
+      await tester.tap(find.text('Início'));
+      await _pumpFrames(tester);
+      expect(find.text('Seu story'), findsNothing);
+      await tester.tap(find.text('O que tá rolando?').first);
+      await _pumpFrames(tester);
+      expect(find.byTooltip('Marcar local'), findsOneWidget);
+      expect(find.byTooltip('Galeria'), findsNothing);
+      expect(find.byTooltip('Câmera'), findsNothing);
     },
     skip: !appMode.isDemo,
   );

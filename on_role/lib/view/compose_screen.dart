@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../app_mode.dart';
 import '../data/repositories.dart';
 import '../data/venue_catalog.dart';
 import '../models/media.dart';
@@ -308,20 +309,23 @@ class _ComposeScreenState extends State<ComposeScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Row(
                 children: [
-                  IconButton(
-                    tooltip: 'Galeria',
-                    onPressed: _publishing || _room <= 0
-                        ? null
-                        : _addFromGallery,
-                    icon: const Icon(Icons.photo_library_outlined),
-                  ),
-                  IconButton(
-                    tooltip: 'Câmera',
-                    onPressed: _publishing || _room <= 0
-                        ? null
-                        : _addFromCamera,
-                    icon: const Icon(Icons.photo_camera_outlined),
-                  ),
+                  // Na demonstração, só texto (ver AppMode.allowsMedia).
+                  if (appMode.allowsMedia) ...[
+                    IconButton(
+                      tooltip: 'Galeria',
+                      onPressed: _publishing || _room <= 0
+                          ? null
+                          : _addFromGallery,
+                      icon: const Icon(Icons.photo_library_outlined),
+                    ),
+                    IconButton(
+                      tooltip: 'Câmera',
+                      onPressed: _publishing || _room <= 0
+                          ? null
+                          : _addFromCamera,
+                      icon: const Icon(Icons.photo_camera_outlined),
+                    ),
+                  ],
                   IconButton(
                     tooltip: 'Marcar local',
                     onPressed: _publishing ? null : _pickVenue,

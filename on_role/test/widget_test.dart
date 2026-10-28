@@ -144,6 +144,8 @@ void main() {
     );
     await tester.pumpWidget(MainApp(repositories: repositories));
     await _pumpFrames(tester);
+    // Conexões (match) é só da demonstração; aqui cada aba abre a sua tela.
+    expect(find.text('Conexões'), findsNothing);
     await tester.tap(find.text('Procurar'));
     await _pumpFrames(tester);
 

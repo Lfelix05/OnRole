@@ -93,6 +93,10 @@ flutter build apk --release --dart-define=MODE=demo
   e o app avisa disso.
 - Conexões segue o desenho da H3: a fila alterna sugestão por afinidade e
   sorteada. A carta mostra o que há em comum, não a nota.
+- Sem câmera e sem galeria: não dá para postar foto, vídeo ou story, nem
+  trocar a foto do perfil. Uma foto ou vídeo do participante o identificaria
+  e ficaria no cache do aparelho mesmo com o app fechado, e a galeria
+  mostraria as fotos do dono do aparelho. O post é só texto.
 - Nada é registrado sobre o uso: sem telemetria, sem tempo de tela, sem
   curtidas enviadas.
 
@@ -105,7 +109,7 @@ flutter build apk --release --dart-define=MODE=demo
    simular a chegada num local, ver o feed e passar algumas cartas em
    Conexões.
 4. **Entre um participante e o próximo, feche o app de vez** (tire dos apps
-   recentes). Assim fotos, posts e curtidas da pessoa anterior somem da
+   recentes). Assim os posts e as curtidas da pessoa anterior somem da
    memória.
 5. Passe o link (ou o QR code) do questionário, o mesmo para todo mundo. A
    pessoa responde depois, no próprio celular, quando quiser. Não confira quem
