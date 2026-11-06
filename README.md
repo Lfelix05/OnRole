@@ -151,6 +151,7 @@ O desenho é anônimo, para a pesquisa poder dispensar o registro no Comitê de 
 - [x] Publicar as regras novas do Firestore (`firebase deploy --only firestore`) antes do teste de campo.
 - [x] Trocar os locais de demonstração por estabelecimentos reais de Colatina.
 - [x] Apagar do Firebase os dados da antiga coleta de campo e os check-ins dos testes (`tools/purge_experiment`, feito em 26/10/2026).
-- [ ] Montar o questionário anônimo no Google Forms (texto em `docs/protocolo_experimento.md`).
+- [x] Montar o questionário anônimo no Google Forms (texto em `docs/protocolo_experimento.md`; conferir as configurações com `docs/ajustar_formulario.gs`).
+- [ ] Aplicar a demonstração e o questionário a no mínimo 20 voluntários (09/11 a 20/11/2026) e fechar a análise até 24/11/2026.
 - [ ] Rodar a bancada (precisão com várias sementes; quadros e bateria em 2 ou 3 aparelhos).
 - [x] Ajustar as geocercas pelo resultado da bancada: detecção de parada e 3 min de permanência (transições corretas de 57% para ~94% nos trajetos sintéticos).
