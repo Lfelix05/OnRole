@@ -51,16 +51,19 @@ class _HomeViewState extends State<HomeView> {
             _currentIndex = index;
           });
         },
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Início'),
-          BottomNavigationBarItem(icon: Icon(Icons.gps_fixed), label: 'Mapa'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.favorite_border),
-            activeIcon: Icon(Icons.favorite),
-            label: 'Conexões',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Procurar'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
+        // Um item para cada página de _pages, na mesma ordem e com a mesma
+        // condição.
+        items: <BottomNavigationBarItem>[
+          const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Início'),
+          const BottomNavigationBarItem(icon: Icon(Icons.gps_fixed), label: 'Mapa'),
+          if (appMode.isDemo)
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.favorite_border),
+              activeIcon: Icon(Icons.favorite),
+              label: 'Conexões',
+            ),
+          const BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Procurar'),
+          const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
         ],
       ),
     );

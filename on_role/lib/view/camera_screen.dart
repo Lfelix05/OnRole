@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
+import '../app_mode.dart';
 import '../data/repositories.dart';
 import '../models/media.dart';
 import '../services/media_drafts.dart';
@@ -15,6 +16,7 @@ class CameraCaptureScreen extends StatefulWidget {
 
   /// Abre a câmera e devolve o que foi capturado (ou null se cancelar).
   static Future<MediaDraft?> open(BuildContext context) {
+    if (!appMode.allowsMedia) return Future.value();
     return Navigator.of(context).push<MediaDraft>(
       MaterialPageRoute(
         fullscreenDialog: true,

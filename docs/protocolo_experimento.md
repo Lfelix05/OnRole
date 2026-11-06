@@ -13,7 +13,7 @@ O experimento tem duas partes que não se cruzam:
 | Parte | Hipóteses | Quem participa | Dados |
 | --- | --- | --- | --- |
 | Bancada técnica | H2 (precisão das geocercas) e H4 (FPS e bateria) | Só o pesquisador, nos próprios aparelhos | Trajetos e check-ins sintéticos, gerados por código |
-| Avaliação de uso | H1 (mapa de calor) e H3 (Conexões) | Voluntários com 18 anos ou mais | Questionário anônimo, depois de usar a demonstração |
+| Avaliação de uso | H1 (mapa de calor) e H3 (Conexões), medidas por percepção | Voluntários com 18 anos ou mais (mínimo de 20) | Questionário anônimo, depois de usar a demonstração |
 
 ## 1. Bancada técnica (H2 e H4)
 
@@ -72,6 +72,38 @@ acerto das geocercas naquele trajeto. Copie o texto e cole no TCC.
 
 ## 2. Avaliação de uso (H1 e H3)
 
+### Hipóteses
+
+O questionário mede o que a pessoa percebe, não o tempo real nem as
+curtidas reais. Por isso H1 e H3 são escritas como hipóteses de percepção:
+
+- **H1.** A percepção de rapidez e de menor frustração ao escolher um local
+  pelo mapa de calor do OnRolê é maior do que no método que a pessoa usa
+  hoje (itens H1a e H1b).
+- **H3.** As sugestões de pessoas com locais em comum são percebidas como
+  mais interessantes, e como um ponto de partida mais confortável para puxar
+  conversa, do que a aparência nas fotos (itens H3a a H3c).
+
+### Participantes e recrutamento
+
+- **Mínimo de 20 participantes**, com 18 anos ou mais, por adesão voluntária.
+- Amostra por conveniência: convite público, o mesmo texto para todos, em
+  sala e nos grupos de turma do curso de Sistemas de Informação da UNESC.
+- Não há lista de quem participou nem controle de quem respondeu. A contagem
+  é só a de respostas recebidas no formulário.
+- Com 20 respostas, o alfa de Cronbach e os testes têm pouca precisão, o que
+  é declarado nas limitações (seção 4).
+
+### Datas
+
+| Etapa | Período |
+| --- | --- |
+| Aplicação da demonstração e do questionário | 09/11/2026 a 20/11/2026 |
+| Fechamento da análise | até 24/11/2026 |
+
+Se as 20 respostas não forem atingidas até 20/11, isso é relatado no TCC com
+o número real, sem estender a coleta sem combinar com o orientador.
+
 ### Versão de demonstração
 
 ```powershell
@@ -93,6 +125,10 @@ flutter build apk --release --dart-define=MODE=demo
   e o app avisa disso.
 - Conexões segue o desenho da H3: a fila alterna sugestão por afinidade e
   sorteada. A carta mostra o que há em comum, não a nota.
+- Sem câmera e sem galeria: não dá para postar foto, vídeo ou story, nem
+  trocar a foto do perfil. Uma foto ou vídeo do participante o identificaria
+  e ficaria no cache do aparelho mesmo com o app fechado, e a galeria
+  mostraria as fotos do dono do aparelho. O post é só texto.
 - Nada é registrado sobre o uso: sem telemetria, sem tempo de tela, sem
   curtidas enviadas.
 
@@ -105,7 +141,7 @@ flutter build apk --release --dart-define=MODE=demo
    simular a chegada num local, ver o feed e passar algumas cartas em
    Conexões.
 4. **Entre um participante e o próximo, feche o app de vez** (tire dos apps
-   recentes). Assim fotos, posts e curtidas da pessoa anterior somem da
+   recentes). Assim os posts e as curtidas da pessoa anterior somem da
    memória.
 5. Passe o link (ou o QR code) do questionário, o mesmo para todo mundo. A
    pessoa responde depois, no próprio celular, quando quiser. Não confira quem
@@ -115,10 +151,15 @@ flutter build apk --release --dart-define=MODE=demo
 
 O script [questionario_forms.gs](questionario_forms.gs) cria o formulário
 inteiro, com as perguntas abaixo e as configurações já aplicadas. Abra
-script.google.com, crie um projeto novo, cole o arquivo, troque `CONTATO` pelo
-seu e-mail institucional e execute `criarQuestionario`. O registro de execução
-mostra o link de edição, para revisar com o orientador, e o link de resposta,
-para os participantes.
+script.google.com, crie um projeto novo, cole o arquivo e execute
+`criarQuestionario`. O registro de execução mostra o link de edição, para
+revisar com o orientador, e o link de resposta, para os participantes.
+
+O formulário definitivo já existe (o link enviado ao orientador em
+28/10/2026), e as cópias foram para a lixeira. Para conferir e corrigir as
+configurações dele e trocar o espaço reservado do contato pelo e-mail, rode
+`ajustarFormulario` do script [ajustar_formulario.gs](ajustar_formulario.gs).
+Ele não mexe nas perguntas nem nas respostas.
 
 **Configurações obrigatórias do formulário:**
 
@@ -154,7 +195,7 @@ para os participantes.
 > - Leva cerca de 5 minutos.
 > - Os resultados serão divulgados só de forma agregada (porcentagens e
 >   médias), no TCC.
-> - Dúvidas: [e-mail institucional do pesquisador].
+> - Dúvidas: lucasyt710@gmail.com.
 >
 > **Você tem 18 anos ou mais e concorda em participar?**
 > ( ) Sim, tenho 18 anos ou mais e concordo em participar
@@ -213,11 +254,15 @@ uso.
 ### Análise
 
 - Para cada construto (UP, FU, IU), use a média dos itens. Relate média,
-  mediana e distribuição (porcentagem de 4 e 5). Use o alfa de Cronbach se a
-  amostra permitir.
-- H1: médias de H1a e H1b, e porcentagem acima de 3.
-- H3: médias de H3a a H3c. A comparação afinidade x sorteio vira percepção
+  mediana e distribuição (porcentagem de 4 e 5). Relate o alfa de Cronbach de
+  cada construto, lembrando que com cerca de 20 respostas ele é impreciso.
+- H1: mediana e porcentagem acima de 3 em H1a e H1b, e teste de Wilcoxon de
+  uma amostra contra o ponto neutro (3). A hipótese é apoiada se as duas
+  medianas ficarem acima de 3 com diferença significativa (p < 0,05).
+- H3: o mesmo para H3a a H3c. A comparação afinidade x sorteio vira percepção
   (H3a), porque nenhuma curtida é registrada.
+- O Wilcoxon é usado porque as respostas são ordinais (escala de 1 a 5) e a
+  amostra é pequena, sem supor distribuição normal.
 - **Divulgue só resultados agregados.** Nada de respostas individuais, nem
   cruzamentos que isolem grupos pequenos (menos de 5 pessoas). Comentários
   abertos entram resumidos em temas, sem citação literal que possa
@@ -230,10 +275,29 @@ uso.
   diário de campo "Cheguei/Saí", com horários e locais reais. Saiu do app e
   as regras do Firestore negam a coleção `telemetry`.
 - A exportação pseudonimizada (`tools/experiment_export`).
-- Os dados que a coleta antiga deixou no Firebase: apague com
-  `on_role/tools/purge_experiment` (veja o README da pasta), junto com
-  qualquer cópia local, como planilhas, CSVs ou anotações.
+- Os dados que a coleta antiga deixou no Firebase foram apagados em
+  26/10/2026 com `on_role/tools/purge_experiment` (`node purge.js --apply
+  --checkins`): 78 lotes de telemetria com o diário de campo, o
+  consentimento, o histórico de check-ins, a presença e a contagem de visitas
+  das contas. Antes da aplicação, a contagem sem `--apply`
+  (`node purge.js --checkins`) é rodada de novo e precisa dar zero. Qualquer
+  cópia local (planilhas, CSVs, anotações) também deve ser apagada.
 - O app completo, com Firebase e GPS real, não é entregue a participantes.
+
+## 4. Limitações
+
+- **Sem fotos e stories na demonstração.** Para não identificar ninguém, a
+  demonstração não tem câmera nem galeria, e quem avalia publica só texto.
+  A avaliação do feed fica limitada a ver as publicações sintéticas.
+- **GPS simulado na bancada.** A precisão das geocercas (H2) vem de trajetos
+  sintéticos com um modelo de erro do GPS. Ela mede a lógica das geocercas,
+  não o GPS de um aparelho real.
+- **Amostra por conveniência.** Cerca de 20 voluntários do próprio curso,
+  sem sorteio. Os resultados não se generalizam para outros públicos, e o
+  alfa de Cronbach e os testes têm pouca precisão.
+- **Percepção, não comportamento.** H1 e H3 medem o que a pessoa acha depois
+  de usar a demonstração, e não o tempo real de escolha nem curtidas reais.
+- **Check-in só com o app aberto** e testado só no Android.
 
 ## Referência
 

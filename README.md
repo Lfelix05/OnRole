@@ -22,7 +22,7 @@ O OnRolê é a fusão entre geolocalização e rede social, criada para quem nã
 - **Mapa real de Colatina** (OpenStreetMap com filtro escuro) com **mapa de calor por KDE** e lotação real de cada local (quantas pessoas têm check-in ativo agora).
 - **Localização por GPS** (`geolocator`) e **check-in automático por geocerca**: entrada, permanência mínima (dwell) e saída, com histerese e descarte de leituras imprecisas.
 - **Modo simulação** (só em builds de depuração) para testar o check-in sem sair de casa.
-- **Versão de demonstração** (`MODE=demo`), a que vai para quem avalia o app: sem conta, sem localização e sem Firebase. Mapa de calor, feed e Conexões usam pessoas e check-ins sintéticos, e nada sai do aparelho. Veja [docs/protocolo_experimento.md](docs/protocolo_experimento.md).
+- **Versão de demonstração** (`MODE=demo`), a que vai para quem avalia o app: sem conta, sem localização, sem Firebase e sem câmera ou galeria (posts só de texto). Mapa de calor, feed e Conexões usam pessoas e check-ins sintéticos, e nada sai do aparelho. Veja [docs/protocolo_experimento.md](docs/protocolo_experimento.md).
 - **Bancada de testes** (`MODE=bancada`, só para o pesquisador): mede a precisão das geocercas (H2) com trajetos sintéticos de gabarito conhecido, e os quadros do mapa e a bateria (H4) repetindo um trajeto em tempo real.
 - **Conexões (match geossocial, H3)**, só na demonstração: cartas no estilo do Tinder com quem frequenta os mesmos locais. A afinidade combina o Jaccard ponderado das visitas por local (70%) com o Jaccard dos "gostos de rolê" (30%). A fila alterna uma sugestão por afinidade e uma sorteada (grupo controle), e cada decisão guarda a fonte, para comparar a reciprocidade das duas no TCC. Curtida recíproca vira match. A carta mostra o que vocês têm em comum, não a nota.
 - **Perfil com foto, bio e gostos de rolê** (até 8). A foto pode ser escolhida já no cadastro e aparece nos posts, stories e respostas. O perfil tem capa, cartões de números, gostos de rolê e "Onde mais vou" (locais com mais check-ins). A grade mostra só posts com foto ou vídeo, e a lista só os de texto.
@@ -151,6 +151,7 @@ O desenho é anônimo, para a pesquisa poder dispensar o registro no Comitê de 
 - [x] Publicar as regras novas do Firestore (`firebase deploy --only firestore`) antes do teste de campo.
 - [x] Trocar os locais de demonstração por estabelecimentos reais de Colatina.
 - [x] Apagar do Firebase os dados da antiga coleta de campo e os check-ins dos testes (`tools/purge_experiment`, feito em 26/10/2026).
-- [ ] Montar o questionário anônimo no Google Forms (texto em `docs/protocolo_experimento.md`).
+- [x] Montar o questionário anônimo no Google Forms (texto em `docs/protocolo_experimento.md`; conferir as configurações com `docs/ajustar_formulario.gs`).
+- [ ] Aplicar a demonstração e o questionário a no mínimo 20 voluntários (09/11 a 20/11/2026) e fechar a análise até 24/11/2026.
 - [ ] Rodar a bancada (precisão com várias sementes; quadros e bateria em 2 ou 3 aparelhos).
 - [x] Ajustar as geocercas pelo resultado da bancada: detecção de parada e 3 min de permanência (transições corretas de 57% para ~94% nos trajetos sintéticos).

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import '../app_mode.dart';
 import '../data/interest_catalog.dart';
 import '../data/repositories.dart';
 import '../models/media.dart';
@@ -115,7 +116,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               children: [
                 Center(
                   child: GestureDetector(
-                    onTap: _saving ? null : _pickPhoto,
+                    onTap: _saving || !appMode.allowsMedia ? null : _pickPhoto,
                     child: Stack(
                       children: [
                         if (newPhoto != null)
@@ -129,26 +130,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           )
                         else
                           UserAvatar(user: user, radius: 52),
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: AppColors.background,
-                                width: 2,
+                        if (appMode.allowsMedia)
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppColors.background,
+                                  width: 2,
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.photo_camera,
+                                color: Colors.white,
+                                size: 16,
                               ),
                             ),
-                            child: const Icon(
-                              Icons.photo_camera,
-                              color: Colors.white,
-                              size: 16,
-                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),

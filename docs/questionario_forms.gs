@@ -4,7 +4,7 @@
  *
  * 1. Abra https://script.google.com e clique em "Novo projeto".
  * 2. Apague o conteúdo e cole este arquivo inteiro.
- * 3. Troque CONTATO pelo seu e-mail institucional.
+ * 3. Confira o e-mail de contato em CONTATO.
  * 4. Escolha a função criarQuestionario e clique em "Executar". Na primeira
  *    vez o Google pede autorização para criar formulários na sua conta.
  * 5. Em "Registro de execução" aparecem dois links: o de edição (para você e o
@@ -15,7 +15,7 @@
  * respostas a quem responde.
  */
 
-const CONTATO = '[seu e-mail institucional]';
+const CONTATO = 'lucasyt710@gmail.com';
 
 const CONCORDANCIA = ['Discordo totalmente', 'Concordo totalmente'];
 
